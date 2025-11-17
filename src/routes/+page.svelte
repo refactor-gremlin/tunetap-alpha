@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { Button } from '$lib/components/shadncn-ui/button/index.js';
+	import DarkModeToggle from '$lib/components/custom/DarkModeToggle.svelte';
 
 	function startGame() {
 		goto('/playlist');
@@ -7,9 +9,12 @@
 </script>
 
 <div class="homepage">
+	<div class="header-left">
+		<DarkModeToggle />
+	</div>
 	<h1>Welcome to TuneTap</h1>
 	<p>Test your music knowledge with your favorite Spotify playlists!</p>
-	<button onclick={startGame}>Start Game</button>
+	<Button size="lg" onclick={startGame}>Start Game</Button>
 </div>
 
 <style>
@@ -21,6 +26,13 @@
 		min-height: 100vh;
 		padding: 2rem;
 		text-align: center;
+		position: relative;
+	}
+
+	.header-left {
+		position: absolute;
+		top: 2rem;
+		left: 2rem;
 	}
 
 	h1 {
@@ -31,21 +43,6 @@
 	p {
 		font-size: 1.25rem;
 		margin-bottom: 2rem;
-		color: #666;
-	}
-
-	button {
-		padding: 1rem 2rem;
-		font-size: 1.25rem;
-		background-color: #1db954;
-		color: white;
-		border: none;
-		border-radius: 0.5rem;
-		cursor: pointer;
-		transition: background-color 0.2s;
-	}
-
-	button:hover {
-		background-color: #1ed760;
+		color: var(--muted-foreground);
 	}
 </style>

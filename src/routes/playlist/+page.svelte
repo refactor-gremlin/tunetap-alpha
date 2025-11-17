@@ -3,6 +3,11 @@
 	import { submitPlaylist, getPlaylistProgress } from './data.remote';
 	import type { Track } from '$lib/types';
 	import { useInterval } from 'runed';
+	import { Button } from '$lib/components/shadncn-ui/button/index.js';
+	import { Input } from '$lib/components/shadncn-ui/input/index.js';
+	import { Progress } from '$lib/components/shadncn-ui/progress/index.js';
+	import * as Card from '$lib/components/shadncn-ui/card/index.js';
+	import DarkModeToggle from '$lib/components/custom/DarkModeToggle.svelte';
 
 	let playlistUrl = $state('');
 	let tracks = $state<Track[] | null>(null);
@@ -80,11 +85,14 @@
 </script>
 
 <div class="playlist-page">
+	<div class="header-left">
+		<DarkModeToggle />
+	</div>
 	<h1>Enter Your Spotify Playlist</h1>
 	<p>Paste a public Spotify playlist URL to get started</p>
 
 	<div class="input-group">
-		<input
+		<Input
 			type="url"
 			bind:value={playlistUrl}
 			placeholder="https://open.spotify.com/playlist/..."
@@ -95,37 +103,41 @@
 				}
 			}}
 		/>
-		<button onclick={handleSubmit} disabled={loading || !playlistUrl.trim()}>
+		<Button onclick={handleSubmit} disabled={loading || !playlistUrl.trim()}>
 			{loading ? 'Loading...' : 'Load Playlist'}
-		</button>
+		</Button>
 	</div>
 
 	{#if loading && progressMessages.length > 0}
-		<div class="progress-container">
-			<div class="progress-header">
-				<h3>Processing Playlist</h3>
-			</div>
-			<div class="progress-message" bind:this={progressMessageElement}>
-				{#each progressMessages as message}
-					<div class="progress-line">{message}</div>
-				{/each}
-			</div>
-			{#if progressTotal > 0}
-				<div class="progress-bar-container">
-					<div class="progress-bar" style="width: {(progressCurrent / progressTotal) * 100}%"></div>
+		<Card.Root class="progress-container">
+			<Card.Header>
+				<Card.Title>Processing Playlist</Card.Title>
+			</Card.Header>
+			<Card.Content>
+				<div class="progress-message" bind:this={progressMessageElement}>
+					{#each progressMessages as message}
+						<div class="progress-line">{message}</div>
+					{/each}
 				</div>
-				<div class="progress-stats">
-					{progressCurrent} / {progressTotal} tracks ({Math.round((progressCurrent / progressTotal) * 100)}%)
-				</div>
-			{/if}
-		</div>
+				{#if progressTotal > 0}
+					<div class="progress-bar-container">
+						<Progress value={(progressCurrent / progressTotal) * 100} />
+					</div>
+					<div class="progress-stats">
+						{progressCurrent} / {progressTotal} tracks ({Math.round((progressCurrent / progressTotal) * 100)}%)
+					</div>
+				{/if}
+			</Card.Content>
+		</Card.Root>
 	{/if}
 
 	{#if tracks && !loading}
-		<div class="tracks-preview">
-			<p>Found {tracks.length} tracks</p>
-			<p>{tracks.filter((t: Track) => t.status === 'found').length} tracks with audio</p>
-		</div>
+		<Card.Root class="tracks-preview">
+			<Card.Content>
+				<p>Found {tracks.length} tracks</p>
+				<p>{tracks.filter((t: Track) => t.status === 'found').length} tracks with audio</p>
+			</Card.Content>
+		</Card.Root>
 	{/if}
 </div>
 
@@ -137,6 +149,13 @@
 		justify-content: center;
 		min-height: 100vh;
 		padding: 2rem;
+		position: relative;
+	}
+
+	.header-left {
+		position: absolute;
+		top: 2rem;
+		left: 2rem;
 	}
 
 	h1 {
@@ -146,7 +165,7 @@
 
 	p {
 		margin-bottom: 2rem;
-		color: #666;
+		color: var(--muted-foreground);
 	}
 
 	.input-group {
@@ -157,68 +176,17 @@
 		max-width: 500px;
 	}
 
-	input {
-		padding: 0.75rem;
-		font-size: 1rem;
-		border: 2px solid #ddd;
-		border-radius: 0.5rem;
-	}
-
-	input:disabled {
-		opacity: 0.6;
-		cursor: not-allowed;
-	}
-
-	button {
-		padding: 0.75rem 1.5rem;
-		font-size: 1rem;
-		background-color: #1db954;
-		color: white;
-		border: none;
-		border-radius: 0.5rem;
-		cursor: pointer;
-		transition: background-color 0.2s;
-	}
-
-	button:hover:not(:disabled) {
-		background-color: #1ed760;
-	}
-
-	button:disabled {
-		opacity: 0.6;
-		cursor: not-allowed;
-	}
-
-	.tracks-preview {
-		margin-top: 2rem;
-		text-align: center;
-	}
-
-	.progress-container {
-		margin-top: 2rem;
-		padding: 1.5rem;
-		background-color: #f5f5f5;
-		border-radius: 0.5rem;
-		width: 100%;
-		max-width: 600px;
-	}
-
-	.progress-header h3 {
-		margin: 0 0 1rem 0;
-		font-size: 1.25rem;
-	}
-
 	.progress-message {
 		font-family: monospace;
 		font-size: 0.85rem;
-		color: #333;
+		color: var(--foreground);
 		margin-bottom: 1rem;
 		max-height: 300px;
 		overflow-y: auto;
-		background-color: white;
+		background-color: var(--muted);
 		padding: 0.75rem;
-		border-radius: 0.25rem;
-		border: 1px solid #ddd;
+		border-radius: calc(var(--radius) - 2px);
+		border: 1px solid var(--border);
 		scroll-behavior: smooth;
 	}
 
@@ -233,23 +201,13 @@
 
 	.progress-bar-container {
 		width: 100%;
-		height: 24px;
-		background-color: #e0e0e0;
-		border-radius: 12px;
-		overflow: hidden;
 		margin-bottom: 0.5rem;
-	}
-
-	.progress-bar {
-		height: 100%;
-		background-color: #1db954;
-		transition: width 0.2s ease;
 	}
 
 	.progress-stats {
 		text-align: center;
 		font-size: 0.9rem;
-		color: #666;
+		color: var(--muted-foreground);
 	}
 </style>
 

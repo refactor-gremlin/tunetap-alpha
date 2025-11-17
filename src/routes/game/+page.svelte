@@ -4,6 +4,12 @@
 	import { fetchFirstReleaseDate, getQueueSize, getCachedReleaseDatesBatchQuery } from './musicbrainz.remote';
 	import { untrack } from 'svelte';
 	import { useInterval } from 'runed';
+	import { Button } from '$lib/components/shadncn-ui/button/index.js';
+	import * as Card from '$lib/components/shadncn-ui/card/index.js';
+	import { Badge } from '$lib/components/shadncn-ui/badge/index.js';
+	import { Spinner } from '$lib/components/shadncn-ui/spinner/index.js';
+	import * as Table from '$lib/components/shadncn-ui/table/index.js';
+	import DarkModeToggle from '$lib/components/custom/DarkModeToggle.svelte';
 
 	// Get tracks from navigation state
 	let tracks = $state<Track[]>([]);
@@ -170,130 +176,124 @@
 
 <div class="game-page">
 	<div class="header">
+		<div class="header-left">
+			<DarkModeToggle />
+		</div>
 		<h1>Game</h1>
-		<div class="queue-indicator">
-			Server Queue: {queueSize}
+		<div class="header-right">
+			<Badge variant="default" class="queue-indicator">
+				Server Queue: {queueSize}
+			</Badge>
 		</div>
 	</div>
 
 	{#if tracks.length === 0}
-		<div class="no-tracks">
-			<p>No tracks available. Please go back and load a playlist.</p>
-			<a href="/playlist">Back to Playlist Input</a>
-		</div>
+		<Card.Root class="no-tracks">
+			<Card.Content>
+				<p>No tracks available. Please go back and load a playlist.</p>
+				<Button variant="link" href="/playlist">Back to Playlist Input</Button>
+			</Card.Content>
+		</Card.Root>
 	{/if}
 
 	{#if tracks.length > 0}
 		<div class="game-content">
-			<div class="track-info">
-				<h2>Track {currentTrackIndex + 1} of {tracks.length}</h2>
-				{#if tracks[currentTrackIndex]}
-					{@const track = tracks[currentTrackIndex]}
-					<div class="controls">
-						<button onclick={() => playTrack(track)}>Play</button>
-						<button onclick={stopTrack}>Stop</button>
-					</div>
-					<div class="track-details">
-						<p><strong>Status:</strong> {track.status}</p>
-						{#if track.audioUrl}
-							<p><strong>Audio:</strong> Available</p>
-						{:else}
-							<p><strong>Audio:</strong> Missing</p>
-						{/if}
-						<p><strong>Release Date:</strong>
-							{#if track.firstReleaseDate}
-								{track.firstReleaseDate}
-							{:else if getReleaseDatePromise(currentTrackIndex)}
-								{#await getReleaseDatePromise(currentTrackIndex)}
-									<span class="loading-date">
-										<svg class="clock-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-											<circle cx="12" cy="12" r="10"></circle>
-											<polyline points="12 6 12 12 16 14"></polyline>
-										</svg>
-										Loading...
-									</span>
-								{:then date}
-									{#if date}
-										{date}
-									{:else}
-										<span class="not-found">
-											<svg class="x-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-												<line x1="18" y1="6" x2="6" y2="18"></line>
-												<line x1="6" y1="6" x2="18" y2="18"></line>
-											</svg>
-											Not found
-										</span>
-									{/if}
-								{:catch}
-									<span class="not-found">
-										<svg class="x-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-											<line x1="18" y1="6" x2="6" y2="18"></line>
-											<line x1="6" y1="6" x2="18" y2="18"></line>
-										</svg>
-										Error
-									</span>
-								{/await}
-							{:else}
-								<span class="not-found">
-									<svg class="x-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-										<line x1="18" y1="6" x2="6" y2="18"></line>
-										<line x1="6" y1="6" x2="18" y2="18"></line>
-									</svg>
-									Not found
-								</span>
-							{/if}
-						</p>
-					</div>
-				{/if}
-			</div>
-
-			<div class="track-list">
-				<h3>All Tracks</h3>
-				<ul>
-					{#each tracks as track, index}
-						<li class:active={index === currentTrackIndex}>
-							<button onclick={() => (currentTrackIndex = index)}>
-								{track.name} - {track.artists.join(', ')}
-								{#if track.status === 'found'}
-									<span class="status-found">✓</span>
-								{:else}
-									<span class="status-missing">✗</span>
-								{/if}
-								{#if !track.firstReleaseDate && getReleaseDatePromise(index)}
-									{#await getReleaseDatePromise(index)}
-										<span class="loading-date-inline">
-											<svg class="clock-icon-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-												<circle cx="12" cy="12" r="10"></circle>
-												<polyline points="12 6 12 12 16 14"></polyline>
-											</svg>
+			<Card.Root class="track-info">
+				<Card.Header>
+					<Card.Title>Track {currentTrackIndex + 1} of {tracks.length}</Card.Title>
+				</Card.Header>
+				<Card.Content>
+					{#if tracks[currentTrackIndex]}
+						{@const track = tracks[currentTrackIndex]}
+						<div class="controls">
+							<Button onclick={() => playTrack(track)}>Play</Button>
+							<Button variant="outline" onclick={stopTrack}>Stop</Button>
+						</div>
+						<div class="track-details">
+							<p><strong>Status:</strong> 
+								<Badge variant={track.status === 'found' ? 'default' : 'destructive'}>
+									{track.status}
+								</Badge>
+							</p>
+							<p><strong>Audio:</strong> 
+								<Badge variant={track.audioUrl ? 'default' : 'secondary'}>
+									{track.audioUrl ? 'Available' : 'Missing'}
+								</Badge>
+							</p>
+							<p><strong>Release Date:</strong>
+								{#if track.firstReleaseDate}
+									<Badge variant="default">{track.firstReleaseDate}</Badge>
+								{:else if getReleaseDatePromise(currentTrackIndex)}
+									{#await getReleaseDatePromise(currentTrackIndex)}
+										<span class="loading-date">
+											<Spinner />
+											Loading...
 										</span>
 									{:then date}
 										{#if date}
-											<span class="release-date-badge">{date}</span>
+											<Badge variant="default">{date}</Badge>
 										{:else}
-											<span class="not-found-inline">
-												<svg class="x-icon-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-													<line x1="18" y1="6" x2="6" y2="18"></line>
-													<line x1="6" y1="6" x2="18" y2="18"></line>
-												</svg>
-											</span>
+											<Badge variant="destructive">Not found</Badge>
 										{/if}
-									{:catch error}
-										<span class="not-found-inline">
-											<svg class="x-icon-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-												<line x1="18" y1="6" x2="6" y2="18"></line>
-												<line x1="6" y1="6" x2="18" y2="18"></line>
-											</svg>
-										</span>
+									{:catch}
+										<Badge variant="destructive">Error</Badge>
 									{/await}
-								{:else if track.firstReleaseDate}
-									<span class="release-date-badge">{track.firstReleaseDate}</span>
+								{:else}
+									<Badge variant="destructive">Not found</Badge>
 								{/if}
-							</button>
-						</li>
-					{/each}
-				</ul>
-			</div>
+							</p>
+						</div>
+					{/if}
+				</Card.Content>
+			</Card.Root>
+
+			<Card.Root class="track-list">
+				<Card.Header>
+					<Card.Title>All Tracks</Card.Title>
+				</Card.Header>
+				<Card.Content>
+					<Table.Root>
+						<Table.Body>
+							{#each tracks as track, index}
+								<Table.Row 
+									class={index === currentTrackIndex ? 'active' : ''}
+									onclick={() => (currentTrackIndex = index)}
+								>
+									<Table.Cell class="track-name-cell">
+										{track.name} - {track.artists.join(', ')}
+									</Table.Cell>
+									<Table.Cell class="status-cell">
+										{#if track.status === 'found'}
+											<Badge variant="default">✓</Badge>
+										{:else}
+											<Badge variant="destructive">✗</Badge>
+										{/if}
+									</Table.Cell>
+									<Table.Cell class="date-cell">
+										{#if !track.firstReleaseDate && getReleaseDatePromise(index)}
+											{#await getReleaseDatePromise(index)}
+												<Spinner />
+											{:then date}
+												{#if date}
+													<Badge variant="default">{date}</Badge>
+												{:else}
+													<Badge variant="destructive">✗</Badge>
+												{/if}
+											{:catch error}
+												<Badge variant="destructive">✗</Badge>
+											{/await}
+										{:else if track.firstReleaseDate}
+											<Badge variant="default">{track.firstReleaseDate}</Badge>
+										{:else}
+											<Badge variant="destructive">✗</Badge>
+										{/if}
+									</Table.Cell>
+								</Table.Row>
+							{/each}
+						</Table.Body>
+					</Table.Root>
+				</Card.Content>
+			</Card.Root>
 		</div>
 	{/if}
 </div>
@@ -320,17 +320,24 @@
 		flex: 1;
 	}
 
-	.queue-indicator {
+	.header-left {
+		position: absolute;
+		top: 0;
+		left: 0;
+		display: flex;
+		align-items: center;
+	}
+
+	.header-right {
 		position: absolute;
 		top: 0;
 		right: 0;
-		background-color: #1db954;
-		color: white;
-		padding: 0.5rem 1rem;
-		border-radius: 0.5rem;
-		font-size: 0.875rem;
-		font-weight: 600;
-		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+		display: flex;
+		align-items: center;
+	}
+
+	.queue-indicator {
+		margin: 0;
 	}
 
 	.game-content {
@@ -339,139 +346,65 @@
 		gap: 2rem;
 	}
 
-	.track-info {
-		padding: 2rem;
-		background-color: #f5f5f5;
-		border-radius: 0.5rem;
-	}
-
 	.controls {
 		display: flex;
 		gap: 1rem;
 		margin: 1rem 0;
 	}
 
-	button {
-		padding: 0.75rem 1.5rem;
-		font-size: 1rem;
-		background-color: #1db954;
-		color: white;
-		border: none;
-		border-radius: 0.5rem;
-		cursor: pointer;
-		transition: background-color 0.2s;
+	.track-details {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
 	}
 
-	button:hover {
-		background-color: #1ed760;
-	}
-
-	.track-list {
-		padding: 2rem;
-		background-color: #f5f5f5;
-		border-radius: 0.5rem;
-	}
-
-	ul {
-		list-style: none;
-		padding: 0;
+	.track-details p {
 		margin: 0;
+		color: var(--foreground);
 	}
 
-	li {
-		margin-bottom: 0.5rem;
-	}
-
-	li button {
+	.track-list :global(table) {
 		width: 100%;
-		text-align: left;
-		background-color: white;
-		color: #333;
-		border: 1px solid #ddd;
 	}
 
-	li.active button {
-		background-color: #1db954;
-		color: white;
+	.track-list :global(tr.active) {
+		background-color: var(--primary);
+		color: var(--primary-foreground);
 	}
 
-	.status-found {
-		color: #1db954;
-		margin-left: 0.5rem;
+	.track-list :global(tr) {
+		cursor: pointer;
 	}
 
-	.status-missing {
-		color: #e74c3c;
-		margin-left: 0.5rem;
+	.track-list :global(tr:hover) {
+		background-color: var(--accent);
 	}
 
-	.not-found {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.5rem;
-		color: #e74c3c;
-		font-style: italic;
+	.track-list :global(tr.active:hover) {
+		background-color: var(--primary);
+		opacity: 0.9;
 	}
 
-	.x-icon {
-		width: 1rem;
-		height: 1rem;
-		flex-shrink: 0;
+	.track-name-cell {
+		width: auto;
+		min-width: 0;
 	}
 
-	.not-found-inline {
-		display: inline-flex;
-		align-items: center;
-		margin-left: 0.5rem;
+	.status-cell {
+		width: 80px;
+		text-align: center;
 	}
 
-	.x-icon-inline {
-		width: 0.875rem;
-		height: 0.875rem;
-		color: #e74c3c;
+	.date-cell {
+		width: 120px;
+		text-align: right;
 	}
 
 	.loading-date {
 		display: inline-flex;
 		align-items: center;
 		gap: 0.5rem;
-		color: #666;
-	}
-
-	.clock-icon {
-		width: 1rem;
-		height: 1rem;
-		animation: rotate 2s linear infinite;
-	}
-
-	.clock-icon-inline {
-		width: 0.875rem;
-		height: 0.875rem;
-		animation: rotate 2s linear infinite;
-		margin-left: 0.5rem;
-		vertical-align: middle;
-	}
-
-	@keyframes rotate {
-		from {
-			transform: rotate(0deg);
-		}
-		to {
-			transform: rotate(360deg);
-		}
-	}
-
-	.loading-date-inline {
-		display: inline-flex;
-		align-items: center;
-		margin-left: 0.5rem;
-	}
-
-	.release-date-badge {
-		margin-left: 0.5rem;
-		font-size: 0.875rem;
-		color: #1db954;
-		font-weight: 500;
+		color: var(--muted-foreground);
 	}
 </style>
 
