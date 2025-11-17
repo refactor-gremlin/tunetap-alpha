@@ -7,6 +7,7 @@
 	import { Input } from '$lib/components/shadncn-ui/input/index.js';
 	import { Progress } from '$lib/components/shadncn-ui/progress/index.js';
 	import * as Card from '$lib/components/shadncn-ui/card/index.js';
+	import { Checkbox } from '$lib/components/shadncn-ui/checkbox/index.js';
 	import PageHeader from '$lib/components/custom/PageHeader.svelte';
 
 	let playlistUrl = $state('');
@@ -16,6 +17,10 @@
 	let progressCurrent = $state(0);
 	let progressTotal = $state(0);
 	let progressStatus = $state<string>('');
+	let playerCount = $state(2);
+	let showPlayerCountSelection = $state(false);
+	let showSongName = $state(false);
+	let showArtistName = $state(false);
 
 	let progressMessageElement: HTMLDivElement | null = $state(null);
 	
@@ -69,10 +74,8 @@
 			const result = await submitPlaylist({ playlistUrl });
 			if (result.success) {
 				tracks = result.tracks;
-				// Navigate to game page with tracks
-				goto('/game', {
-					state: { tracks: result.tracks }
-				});
+				// Show player count selection
+				showPlayerCountSelection = true;
 			}
 		} catch (error) {
 			console.error('Error submitting playlist:', error);
@@ -80,6 +83,31 @@
 		} finally {
 			loading = false;
 			progressInterval.pause();
+		}
+	}
+
+	function startGame() {
+		if (tracks && playerCount >= 2 && playerCount <= 4) {
+			// Store tracks in sessionStorage (can't pass complex objects via navigation state)
+			try {
+				sessionStorage.setItem('tunetap_tracks', JSON.stringify(tracks));
+				sessionStorage.setItem('tunetap_playerCount', playerCount.toString());
+				sessionStorage.setItem('tunetap_showSongName', showSongName.toString());
+				sessionStorage.setItem('tunetap_showArtistName', showArtistName.toString());
+				// Navigate to game2 page
+				goto('/game2');
+			} catch (error) {
+				console.error('Error storing tracks:', error);
+				// Fallback: try navigation state with serialized data
+				goto('/game2', {
+					state: { 
+						tracksData: JSON.stringify(tracks),
+						playerCount,
+						showSongName,
+						showArtistName
+					}
+				});
+			}
 		}
 	}
 </script>
@@ -133,6 +161,45 @@
 			<Card.Content>
 				<p>Found {tracks.length} tracks</p>
 				<p>{tracks.filter((t: Track) => t.status === 'found').length} tracks with audio</p>
+			</Card.Content>
+		</Card.Root>
+	{/if}
+
+	{#if showPlayerCountSelection && tracks}
+		<Card.Root class="player-selection">
+			<Card.Header>
+				<Card.Title>Select Number of Players</Card.Title>
+			</Card.Header>
+			<Card.Content>
+				<div class="player-count-selection">
+					<p class="instruction">Choose how many players will play (2-4 players)</p>
+					<div class="player-count-buttons">
+						{#each [2, 3, 4] as count}
+							<Button
+								variant={playerCount === count ? 'default' : 'outline'}
+								onclick={() => (playerCount = count)}
+							>
+								{count} {count === 1 ? 'Player' : 'Players'}
+							</Button>
+						{/each}
+					</div>
+					<div class="display-options">
+						<p class="instruction">Display Options:</p>
+						<div class="checkbox-group">
+							<label class="checkbox-label">
+								<Checkbox bind:checked={showSongName} />
+								<span>Show song name</span>
+							</label>
+							<label class="checkbox-label">
+								<Checkbox bind:checked={showArtistName} />
+								<span>Show artist name</span>
+							</label>
+						</div>
+					</div>
+					<Button size="lg" onclick={startGame} class="start-button">
+						Start Game
+					</Button>
+				</div>
 			</Card.Content>
 		</Card.Root>
 	{/if}
@@ -191,6 +258,60 @@
 		text-align: center;
 		font-size: 0.9rem;
 		color: var(--muted-foreground);
+	}
+
+	.player-selection {
+		width: 100%;
+		max-width: 500px;
+	}
+
+	.player-count-selection {
+		display: flex;
+		flex-direction: column;
+		gap: 1.5rem;
+		align-items: center;
+	}
+
+	.instruction {
+		text-align: center;
+		margin: 0;
+		color: var(--foreground);
+	}
+
+	.player-count-buttons {
+		display: flex;
+		gap: 1rem;
+		width: 100%;
+		justify-content: center;
+	}
+
+	.display-options {
+		width: 100%;
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+		align-items: center;
+	}
+
+	.checkbox-group {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+		width: 100%;
+		align-items: flex-start;
+	}
+
+	.checkbox-label {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		cursor: pointer;
+		user-select: none;
+		color: var(--foreground);
+	}
+
+	.start-button {
+		width: 100%;
 	}
 </style>
 

@@ -6,5 +6,5 @@ export interface Track {
 	spotifyPreviewUrl?: string;
 	youtubeUrl?: string;
 	firstReleaseDate?: string; // First release date from MusicBrainz (YYYY-MM-DD format)
+	coverImage?: string;
 }
-

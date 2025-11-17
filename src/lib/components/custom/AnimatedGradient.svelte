@@ -12,7 +12,7 @@
 
 <!-- Background Visual Effects Only -->
 <div 
-	class="background-layer absolute inset-0 z-0" 
+	class="background-layer fixed inset-0 z-0" 
 	in:fade={{ duration: 800, easing: quintOut }}
 	role="presentation"
 >
@@ -37,6 +37,9 @@
 		background-color: var(--background);
 		color: var(--foreground);
 		overflow: hidden;
+		pointer-events: none;
+		width: 100vw;
+		max-width: 100vw;
 	}
 
 	/* Particle Animation */
@@ -118,6 +121,10 @@
 		inset: 0;
 		overflow: hidden;
 		z-index: 0;
+		width: 100%;
+		height: 100%;
+		max-width: 100vw;
+		max-height: 100vh;
 	}
 
 	.shape {

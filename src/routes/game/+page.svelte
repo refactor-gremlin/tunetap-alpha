@@ -9,7 +9,7 @@
 	import { Badge } from '$lib/components/shadncn-ui/badge/index.js';
 	import { Spinner } from '$lib/components/shadncn-ui/spinner/index.js';
 	import * as Table from '$lib/components/shadncn-ui/table/index.js';
-	import DarkModeToggle from '$lib/components/custom/DarkModeToggle.svelte';
+	import PageHeader from '$lib/components/custom/PageHeader.svelte';
 
 	// Get tracks from navigation state
 	let tracks = $state<Track[]>([]);
@@ -174,172 +174,126 @@
 	}
 </script>
 
-<div class="game-page">
-	<div class="header">
-		<div class="header-left">
-			<DarkModeToggle />
-		</div>
-		<h1>Game</h1>
-		<div class="header-right">
-			<Badge variant="default" class="queue-indicator">
-				Server Queue: {queueSize}
-			</Badge>
-		</div>
-	</div>
+<PageHeader title="Game">
+	{#snippet rightActions()}
+		<Badge variant="default">
+			Server Queue: {queueSize}
+		</Badge>
+	{/snippet}
+</PageHeader>
 
-	{#if tracks.length === 0}
-		<Card.Root class="no-tracks">
+{#if tracks.length === 0}
+	<Card.Root class="no-tracks">
+		<Card.Content>
+			<p>No tracks available. Please go back and load a playlist.</p>
+			<Button variant="link" href="/playlist">Back to Playlist Input</Button>
+		</Card.Content>
+	</Card.Root>
+{/if}
+
+{#if tracks.length > 0}
+	<div class="game-content">
+		<Card.Root class="track-info">
+			<Card.Header>
+				<Card.Title>Track {currentTrackIndex + 1} of {tracks.length}</Card.Title>
+			</Card.Header>
 			<Card.Content>
-				<p>No tracks available. Please go back and load a playlist.</p>
-				<Button variant="link" href="/playlist">Back to Playlist Input</Button>
+				{#if tracks[currentTrackIndex]}
+					{@const track = tracks[currentTrackIndex]}
+					<div class="controls">
+						<Button onclick={() => playTrack(track)}>Play</Button>
+						<Button variant="outline" onclick={stopTrack}>Stop</Button>
+					</div>
+					<div class="track-details">
+						<p><strong>Status:</strong> 
+							<Badge variant={track.status === 'found' ? 'default' : 'destructive'}>
+								{track.status}
+							</Badge>
+						</p>
+						<p><strong>Audio:</strong> 
+							<Badge variant={track.audioUrl ? 'default' : 'secondary'}>
+								{track.audioUrl ? 'Available' : 'Missing'}
+							</Badge>
+						</p>
+						<p><strong>Release Date:</strong>
+							{#if track.firstReleaseDate}
+								<Badge variant="default">{track.firstReleaseDate}</Badge>
+							{:else if getReleaseDatePromise(currentTrackIndex)}
+								{#await getReleaseDatePromise(currentTrackIndex)}
+									<span class="loading-date">
+										<Spinner />
+										Loading...
+									</span>
+								{:then date}
+									{#if date}
+										<Badge variant="default">{date}</Badge>
+									{:else}
+										<Badge variant="destructive">Not found</Badge>
+									{/if}
+								{:catch}
+									<Badge variant="destructive">Error</Badge>
+								{/await}
+							{:else}
+								<Badge variant="destructive">Not found</Badge>
+							{/if}
+						</p>
+					</div>
+				{/if}
 			</Card.Content>
 		</Card.Root>
-	{/if}
 
-	{#if tracks.length > 0}
-		<div class="game-content">
-			<Card.Root class="track-info">
-				<Card.Header>
-					<Card.Title>Track {currentTrackIndex + 1} of {tracks.length}</Card.Title>
-				</Card.Header>
-				<Card.Content>
-					{#if tracks[currentTrackIndex]}
-						{@const track = tracks[currentTrackIndex]}
-						<div class="controls">
-							<Button onclick={() => playTrack(track)}>Play</Button>
-							<Button variant="outline" onclick={stopTrack}>Stop</Button>
-						</div>
-						<div class="track-details">
-							<p><strong>Status:</strong> 
-								<Badge variant={track.status === 'found' ? 'default' : 'destructive'}>
-									{track.status}
-								</Badge>
-							</p>
-							<p><strong>Audio:</strong> 
-								<Badge variant={track.audioUrl ? 'default' : 'secondary'}>
-									{track.audioUrl ? 'Available' : 'Missing'}
-								</Badge>
-							</p>
-							<p><strong>Release Date:</strong>
-								{#if track.firstReleaseDate}
-									<Badge variant="default">{track.firstReleaseDate}</Badge>
-								{:else if getReleaseDatePromise(currentTrackIndex)}
-									{#await getReleaseDatePromise(currentTrackIndex)}
-										<span class="loading-date">
+		<Card.Root class="track-list">
+			<Card.Header>
+				<Card.Title>All Tracks</Card.Title>
+			</Card.Header>
+			<Card.Content>
+				<Table.Root>
+					<Table.Body>
+						{#each tracks as track, index}
+							<Table.Row 
+								data-state={index === currentTrackIndex ? 'selected' : undefined}
+								class="selected-row"
+								onclick={() => (currentTrackIndex = index)}
+							>
+								<Table.Cell class="track-name-cell">
+									{track.name} - {track.artists.join(', ')}
+								</Table.Cell>
+								<Table.Cell class="status-cell">
+									{#if track.status === 'found'}
+										<Badge variant="default">✓</Badge>
+									{:else}
+										<Badge variant="destructive">✗</Badge>
+									{/if}
+								</Table.Cell>
+								<Table.Cell class="date-cell">
+									{#if !track.firstReleaseDate && getReleaseDatePromise(index)}
+										{#await getReleaseDatePromise(index)}
 											<Spinner />
-											Loading...
-										</span>
-									{:then date}
-										{#if date}
-											<Badge variant="default">{date}</Badge>
-										{:else}
-											<Badge variant="destructive">Not found</Badge>
-										{/if}
-									{:catch}
-										<Badge variant="destructive">Error</Badge>
-									{/await}
-								{:else}
-									<Badge variant="destructive">Not found</Badge>
-								{/if}
-							</p>
-						</div>
-					{/if}
-				</Card.Content>
-			</Card.Root>
-
-			<Card.Root class="track-list">
-				<Card.Header>
-					<Card.Title>All Tracks</Card.Title>
-				</Card.Header>
-				<Card.Content>
-					<Table.Root>
-						<Table.Body>
-							{#each tracks as track, index}
-								<Table.Row 
-									class={index === currentTrackIndex ? 'active' : ''}
-									onclick={() => (currentTrackIndex = index)}
-								>
-									<Table.Cell class="track-name-cell">
-										{track.name} - {track.artists.join(', ')}
-									</Table.Cell>
-									<Table.Cell class="status-cell">
-										{#if track.status === 'found'}
-											<Badge variant="default">✓</Badge>
-										{:else}
-											<Badge variant="destructive">✗</Badge>
-										{/if}
-									</Table.Cell>
-									<Table.Cell class="date-cell">
-										{#if !track.firstReleaseDate && getReleaseDatePromise(index)}
-											{#await getReleaseDatePromise(index)}
-												<Spinner />
-											{:then date}
-												{#if date}
-													<Badge variant="default">{date}</Badge>
-												{:else}
-													<Badge variant="destructive">✗</Badge>
-												{/if}
-											{:catch error}
+										{:then date}
+											{#if date}
+												<Badge variant="default">{date}</Badge>
+											{:else}
 												<Badge variant="destructive">✗</Badge>
-											{/await}
-										{:else if track.firstReleaseDate}
-											<Badge variant="default">{track.firstReleaseDate}</Badge>
-										{:else}
+											{/if}
+										{:catch error}
 											<Badge variant="destructive">✗</Badge>
-										{/if}
-									</Table.Cell>
-								</Table.Row>
-							{/each}
-						</Table.Body>
-					</Table.Root>
-				</Card.Content>
-			</Card.Root>
-		</div>
-	{/if}
-</div>
+										{/await}
+									{:else if track.firstReleaseDate}
+										<Badge variant="default">{track.firstReleaseDate}</Badge>
+									{:else}
+										<Badge variant="destructive">✗</Badge>
+									{/if}
+								</Table.Cell>
+							</Table.Row>
+						{/each}
+					</Table.Body>
+				</Table.Root>
+			</Card.Content>
+		</Card.Root>
+	</div>
+{/if}
 
 <style>
-	.game-page {
-		padding: 2rem;
-		max-width: 1200px;
-		margin: 0 auto;
-	}
-
-	.header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: 2rem;
-		position: relative;
-	}
-
-	h1 {
-		font-size: 2.5rem;
-		margin: 0;
-		text-align: center;
-		flex: 1;
-	}
-
-	.header-left {
-		position: absolute;
-		top: 0;
-		left: 0;
-		display: flex;
-		align-items: center;
-	}
-
-	.header-right {
-		position: absolute;
-		top: 0;
-		right: 0;
-		display: flex;
-		align-items: center;
-	}
-
-	.queue-indicator {
-		margin: 0;
-	}
-
 	.game-content {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
@@ -367,22 +321,23 @@
 		width: 100%;
 	}
 
-	.track-list :global(tr.active) {
-		background-color: var(--primary);
-		color: var(--primary-foreground);
-	}
-
-	.track-list :global(tr) {
+	.track-list :global(tr.selected-row) {
 		cursor: pointer;
+		position: relative;
 	}
 
-	.track-list :global(tr:hover) {
+	.track-list :global(tr.selected-row[data-state="selected"]) {
 		background-color: var(--accent);
+		border-left: 3px solid var(--primary);
 	}
 
-	.track-list :global(tr.active:hover) {
-		background-color: var(--primary);
-		opacity: 0.9;
+	.track-list :global(tr.selected-row[data-state="selected"]:hover) {
+		background-color: var(--accent);
+		opacity: 0.95;
+	}
+
+	.track-list :global(tr.selected-row:hover:not([data-state="selected"])) {
+		background-color: color-mix(in oklch, var(--muted) 50%, transparent);
 	}
 
 	.track-name-cell {

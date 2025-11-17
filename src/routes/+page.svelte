@@ -1,48 +1,37 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { Button } from '$lib/components/shadncn-ui/button/index.js';
-	import DarkModeToggle from '$lib/components/custom/DarkModeToggle.svelte';
+	import PageHeader from '$lib/components/custom/PageHeader.svelte';
 
 	function startGame() {
 		goto('/playlist');
 	}
 </script>
 
-<div class="homepage">
-	<div class="header-left">
-		<DarkModeToggle />
-	</div>
+<PageHeader />
+<div class="homepage-content">
 	<h1>Welcome to TuneTap</h1>
-	<p>Test your music knowledge with your favorite Spotify playlists!</p>
+	<p class="subtitle">Test your music knowledge with your favorite Spotify playlists!</p>
 	<Button size="lg" onclick={startGame}>Start Game</Button>
 </div>
 
 <style>
-	.homepage {
+	.homepage-content {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		min-height: 100vh;
-		padding: 2rem;
 		text-align: center;
-		position: relative;
+		gap: 1.5rem;
+		flex: 1;
+		min-height: 0;
 	}
-
-	.header-left {
-		position: absolute;
-		top: 2rem;
-		left: 2rem;
+	
+	.homepage-content h1 {
+		margin-bottom: 0.5rem;
 	}
-
-	h1 {
-		font-size: 3rem;
-		margin-bottom: 1rem;
-	}
-
-	p {
-		font-size: 1.25rem;
-		margin-bottom: 2rem;
-		color: var(--muted-foreground);
+	
+	.homepage-content p {
+		margin-bottom: 0;
 	}
 </style>

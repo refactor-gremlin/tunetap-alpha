@@ -16,6 +16,7 @@ interface SpotifyTrack {
 	artists?: SpotifyArtist[]; // Array format (if different API)
 	previewUrl?: string; // camelCase format from spotify-url-info
 	preview_url?: string; // snake_case format (if different API)
+	uri?: string;
 }
 
 type SpotifyUrlInfo = (fetch: typeof globalThis.fetch) => {
@@ -28,7 +29,12 @@ type SpotifyUrlInfo = (fetch: typeof globalThis.fetch) => {
 
 const spotifyUrlInfo = spotifyUrlInfoDefault as unknown as SpotifyUrlInfo;
 const spotify = spotifyUrlInfo(fetch);
-const { getTracks } = spotify;
+const { getTracks, getPreview } = spotify;
+
+interface SpotifyPreviewData {
+	image?: string;
+	audio?: string;
+}
 
 // Progress tracking storage
 const progressStore = new Map<string, {
@@ -111,6 +117,16 @@ export async function processPlaylist(
 		
 		// Check if Spotify provides a preview URL - handle both camelCase and snake_case
 		const spotifyPreviewUrl = spotifyTrack.previewUrl || spotifyTrack.preview_url;
+		let coverImage: string | undefined;
+		
+		if (spotifyTrack.uri) {
+			try {
+				const previewData = await getPreview(spotifyTrack.uri) as SpotifyPreviewData;
+				coverImage = previewData?.image;
+			} catch (error) {
+				console.warn(`[processTrack] Failed fetching preview data for track ${index + 1}:`, error);
+			}
+		}
 		
 		let audioUrl: string | undefined;
 		let status: 'found' | 'missing' = 'missing';
@@ -171,7 +187,8 @@ export async function processPlaylist(
 			audioUrl,
 			status,
 			spotifyPreviewUrl,
-			youtubeUrl: audioUrl && !spotifyPreviewUrl ? audioUrl : undefined
+			youtubeUrl: audioUrl && !spotifyPreviewUrl ? audioUrl : undefined,
+			coverImage
 		};
 		console.log(`[processTrack] Completed track ${index + 1}, status: ${status}, audioUrl: ${audioUrl || 'none'}`);
 		return trackResult;
@@ -208,4 +225,3 @@ export async function processPlaylist(
 	console.log(`[processPlaylist] Returning ${tracks.length} tracks`);
 	return tracks;
 }
-
