@@ -19,3 +19,7 @@ export const fetchFirstReleaseDate = query(
 	}
 );
 
+export const getQueueSize = query(async () => {
+	return musicBrainzQueue.getPendingCount();
+});
+

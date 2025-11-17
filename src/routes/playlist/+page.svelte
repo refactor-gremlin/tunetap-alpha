@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { submitPlaylist, getPlaylistProgress } from './data.remote';
 	import type { Track } from '$lib/types';
+	import { useInterval } from 'runed';
 
 	let playlistUrl = $state('');
 	let tracks = $state<Track[] | null>(null);
@@ -11,8 +12,32 @@
 	let progressTotal = $state(0);
 	let progressStatus = $state<string>('');
 
-	let progressInterval: ReturnType<typeof setInterval> | null = null;
 	let progressMessageElement: HTMLDivElement | null = $state(null);
+	
+	// Create interval at component level, but don't start it immediately
+	const progressInterval = useInterval(200, {
+		immediate: false,
+		callback: async () => {
+			try {
+				const progress = await getPlaylistProgress();
+				if (progress) {
+					// Add new message if it's different from the last one
+					if (progressMessages.length === 0 || progressMessages[progressMessages.length - 1] !== progress.message) {
+						progressMessages = [...progressMessages, progress.message];
+						// Keep only last 50 messages to prevent memory issues
+						if (progressMessages.length > 50) {
+							progressMessages = progressMessages.slice(-50);
+						}
+					}
+					progressCurrent = progress.current;
+					progressTotal = progress.total;
+					progressStatus = progress.status;
+				}
+			} catch (error) {
+				// Ignore polling errors
+			}
+		}
+	});
 
 	// Auto-scroll to bottom when new messages arrive
 	$effect(() => {
@@ -33,26 +58,7 @@
 		progressStatus = '';
 
 		// Start polling for progress
-		progressInterval = setInterval(async () => {
-			try {
-				const progress = await getPlaylistProgress();
-				if (progress) {
-					// Add new message if it's different from the last one
-					if (progressMessages.length === 0 || progressMessages[progressMessages.length - 1] !== progress.message) {
-						progressMessages = [...progressMessages, progress.message];
-						// Keep only last 50 messages to prevent memory issues
-						if (progressMessages.length > 50) {
-							progressMessages = progressMessages.slice(-50);
-						}
-					}
-					progressCurrent = progress.current;
-					progressTotal = progress.total;
-					progressStatus = progress.status;
-				}
-			} catch (error) {
-				// Ignore polling errors
-			}
-		}, 200); // Poll every 200ms
+		progressInterval.resume();
 
 		try {
 			const result = await submitPlaylist({ playlistUrl });
@@ -68,10 +74,7 @@
 			progressMessages = [...progressMessages, `Error: ${(error as Error).message}`];
 		} finally {
 			loading = false;
-			if (progressInterval) {
-				clearInterval(progressInterval);
-				progressInterval = null;
-			}
+			progressInterval.pause();
 		}
 	}
 </script>

@@ -1,8 +1,9 @@
 <script lang="ts">
 	import type { Track } from '$lib/types';
 	import { page } from '$app/stores';
-	import { fetchFirstReleaseDate } from './musicbrainz.remote';
+	import { fetchFirstReleaseDate, getQueueSize } from './musicbrainz.remote';
 	import { untrack } from 'svelte';
+	import { useInterval } from 'runed';
 
 	// Get tracks from navigation state
 	let tracks = $state<Track[]>([]);
@@ -11,6 +12,20 @@
 	let releaseDatePromises = $state<Map<number, Promise<string | undefined>>>(new Map());
 	let releaseDates = $state<Map<number, string | undefined>>(new Map());
 	let hasInitialized = $state(false);
+	
+	// Poll queue size every second
+	let queueSize = $state(0);
+	
+	const queueSizeInterval = useInterval(1000, {
+		callback: async () => {
+			try {
+				const size = await getQueueSize();
+				queueSize = size;
+			} catch (error) {
+				console.error('[Game] Error fetching queue size:', error);
+			}
+		}
+	});
 
 	// Initialize tracks from page state (only once)
 	$effect(() => {
@@ -107,7 +122,12 @@
 </script>
 
 <div class="game-page">
-	<h1>Game</h1>
+	<div class="header">
+		<h1>Game</h1>
+		<div class="queue-indicator">
+			Server Queue: {queueSize}
+		</div>
+	</div>
 
 	{#if tracks.length === 0}
 		<div class="no-tracks">
@@ -149,13 +169,31 @@
 									{#if date}
 										{date}
 									{:else}
-										<span class="not-found">Not found</span>
+										<span class="not-found">
+											<svg class="x-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+												<line x1="18" y1="6" x2="6" y2="18"></line>
+												<line x1="6" y1="6" x2="18" y2="18"></line>
+											</svg>
+											Not found
+										</span>
 									{/if}
 								{:catch}
-									<span class="not-found">Error</span>
+									<span class="not-found">
+										<svg class="x-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+											<line x1="18" y1="6" x2="6" y2="18"></line>
+											<line x1="6" y1="6" x2="18" y2="18"></line>
+										</svg>
+										Error
+									</span>
 								{/await}
 							{:else}
-								<span class="not-found">Not found</span>
+								<span class="not-found">
+									<svg class="x-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+										<line x1="18" y1="6" x2="6" y2="18"></line>
+										<line x1="6" y1="6" x2="18" y2="18"></line>
+									</svg>
+									Not found
+								</span>
 							{/if}
 						</p>
 					</div>
@@ -185,9 +223,21 @@
 									{:then date}
 										{#if date}
 											<span class="release-date-badge">{date}</span>
+										{:else}
+											<span class="not-found-inline">
+												<svg class="x-icon-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+													<line x1="18" y1="6" x2="6" y2="18"></line>
+													<line x1="6" y1="6" x2="18" y2="18"></line>
+												</svg>
+											</span>
 										{/if}
 									{:catch error}
-										<!-- Error fetching release date -->
+										<span class="not-found-inline">
+											<svg class="x-icon-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+												<line x1="18" y1="6" x2="6" y2="18"></line>
+												<line x1="6" y1="6" x2="18" y2="18"></line>
+											</svg>
+										</span>
 									{/await}
 								{:else if track.firstReleaseDate}
 									<span class="release-date-badge">{track.firstReleaseDate}</span>
@@ -208,10 +258,32 @@
 		margin: 0 auto;
 	}
 
+	.header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 2rem;
+		position: relative;
+	}
+
 	h1 {
 		font-size: 2.5rem;
-		margin-bottom: 2rem;
+		margin: 0;
 		text-align: center;
+		flex: 1;
+	}
+
+	.queue-indicator {
+		position: absolute;
+		top: 0;
+		right: 0;
+		background-color: #1db954;
+		color: white;
+		padding: 0.5rem 1rem;
+		border-radius: 0.5rem;
+		font-size: 0.875rem;
+		font-weight: 600;
+		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 	}
 
 	.game-content {
@@ -287,8 +359,29 @@
 	}
 
 	.not-found {
-		color: #999;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		color: #e74c3c;
 		font-style: italic;
+	}
+
+	.x-icon {
+		width: 1rem;
+		height: 1rem;
+		flex-shrink: 0;
+	}
+
+	.not-found-inline {
+		display: inline-flex;
+		align-items: center;
+		margin-left: 0.5rem;
+	}
+
+	.x-icon-inline {
+		width: 0.875rem;
+		height: 0.875rem;
+		color: #e74c3c;
 	}
 
 	.loading-date {

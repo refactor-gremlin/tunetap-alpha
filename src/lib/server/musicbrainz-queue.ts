@@ -13,6 +13,15 @@ class MusicBrainzQueue {
 	private lastRequestTime = 0;
 	private readonly MIN_REQUEST_INTERVAL = 1000; // 1 second
 
+	getQueueSize(): number {
+		return this.queue.length;
+	}
+
+	getPendingCount(): number {
+		// Return total pending: queued items + currently processing item
+		return this.queue.length + (this.isProcessing ? 1 : 0);
+	}
+
 	async enqueue(trackName: string, artistName: string): Promise<string | undefined> {
 		// First check cache
 		const cached = await getCachedReleaseDate(trackName, artistName);
