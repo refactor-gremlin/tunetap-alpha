@@ -39,6 +39,60 @@ export async function getCachedReleaseDate(
 }
 
 /**
+ * Get cached release dates for multiple tracks in a single batch query
+ * @param tracks - Array of track objects with trackName and artistName
+ * @returns Map keyed by `${trackName}|${artistName}` with release dates (or null if not found)
+ */
+export async function getCachedReleaseDatesBatch(
+	tracks: Array<{ trackName: string; artistName: string }>
+): Promise<Map<string, string | null>> {
+	const result = new Map<string, string | null>();
+	
+	if (tracks.length === 0) {
+		return result;
+	}
+
+	try {
+		// Build OR conditions for findMany
+		const whereConditions = tracks.map(({ trackName, artistName }) => ({
+			trackName,
+			artistName
+		}));
+
+		const cached = await prisma.releaseDateCache.findMany({
+			where: {
+				OR: whereConditions
+			},
+			select: {
+				trackName: true,
+				artistName: true,
+				releaseDate: true
+			}
+		});
+
+		// Create a map of found cache entries
+		const foundMap = new Map<string, string | null>();
+		for (const entry of cached) {
+			const key = `${entry.trackName}|${entry.artistName}`;
+			foundMap.set(key, entry.releaseDate);
+		}
+
+		// Populate result map - include all tracks, mark missing ones as null
+		for (const { trackName, artistName } of tracks) {
+			const key = `${trackName}|${artistName}`;
+			result.set(key, foundMap.get(key) ?? null);
+		}
+
+		console.log(`[DB Cache] Batch check: Found ${cached.length} cached dates out of ${tracks.length} tracks`);
+		return result;
+	} catch (error) {
+		console.error(`[DB Cache] Error getting cached release dates batch:`, error);
+		// Return empty map on error - tracks will be fetched normally
+		return result;
+	}
+}
+
+/**
  * Cache a release date in the database
  * @param trackName - The name of the track
  * @param artistName - The name of the artist

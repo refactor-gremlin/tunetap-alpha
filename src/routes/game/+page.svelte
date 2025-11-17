@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Track } from '$lib/types';
 	import { page } from '$app/stores';
-	import { fetchFirstReleaseDate, getQueueSize } from './musicbrainz.remote';
+	import { fetchFirstReleaseDate, getQueueSize, getCachedReleaseDatesBatchQuery } from './musicbrainz.remote';
 	import { untrack } from 'svelte';
 	import { useInterval } from 'runed';
 
@@ -37,20 +37,69 @@
 			const promises = new Map<number, Promise<string | undefined>>();
 			const dates = new Map<number, string | undefined>();
 			
-			// Store tracks that need fetching
-			const tracksToFetch: Array<{ index: number; track: Track }> = [];
-			pageState.tracks.forEach((track, index) => {
-				if (track.firstReleaseDate) {
-					// Track already has a date, store it
-					dates.set(index, track.firstReleaseDate);
-				} else if (track.artists.length > 0) {
-					// Track needs fetching
-					tracksToFetch.push({ index, track });
+			// Batch check database cache first
+			async function initializeTracks() {
+				// Prepare tracks for batch check (only those without dates and with artists)
+				const tracksToCheck = pageState.tracks!
+					.map((track, index) => ({ index, track }))
+					.filter(({ track }) => !track.firstReleaseDate && track.artists.length > 0);
+				
+				// Initialize cachedDates object
+				let cachedDates: Record<string, string | null> = {};
+				
+				if (tracksToCheck.length > 0) {
+					// Batch check database cache
+					const batchCheckTracks = tracksToCheck.map(({ track }) => ({
+						trackName: track.name,
+						artistName: track.artists[0]
+					}));
+					
+					try {
+						cachedDates = await getCachedReleaseDatesBatchQuery({ tracks: batchCheckTracks });
+						
+						// Update tracks with cached dates immediately
+						untrack(() => {
+							for (const { index, track } of tracksToCheck) {
+								const key = `${track.name}|${track.artists[0]}`;
+								const cachedDate = cachedDates[key];
+								
+								if (cachedDate !== undefined && cachedDate !== null) {
+									// Found in cache, update track immediately
+									const date = cachedDate;
+									dates.set(index, date);
+									tracks = tracks.map((t, idx) => 
+										idx === index ? { ...t, firstReleaseDate: date } : t
+									);
+								}
+							}
+							releaseDates = new Map(dates);
+						});
+					} catch (error) {
+						console.error('[Game] Error in batch cache check:', error);
+					}
 				}
-			});
-			
-			// Fetch sequentially, starting from top (index 0)
-			async function fetchSequentially() {
+				
+				// Store tracks that already have dates
+				pageState.tracks!.forEach((track, index) => {
+					if (track.firstReleaseDate) {
+						dates.set(index, track.firstReleaseDate);
+					}
+				});
+				
+				// Now only queue tracks that weren't found in cache and don't have dates
+				const tracksToFetch: Array<{ index: number; track: Track }> = [];
+				for (const { index, track } of tracksToCheck) {
+					const key = `${track.name}|${track.artists[0]}`;
+					const cachedDate = cachedDates[key];
+					
+					// Only queue if not found in cache (null or undefined)
+					if (cachedDate === null || cachedDate === undefined) {
+						tracksToFetch.push({ index, track });
+					}
+				}
+				
+				// Queue all items at once, then process them sequentially via the queue
+				// This allows the queue size to accurately reflect pending items
 				for (const { index, track } of tracksToFetch) {
 					const artistName = track.artists[0];
 					const promise = fetchFirstReleaseDate({ trackName: track.name, artistName }).then((date) => {
@@ -69,17 +118,15 @@
 						return date;
 					});
 					promises.set(index, promise);
-					releaseDatePromises = new Map(promises);
-					
-					// Wait for this promise to complete before starting the next one
-					// This ensures rate limiting is respected (1 per second)
-					await promise;
 				}
+				
+				// Update promises map once all are queued
+				releaseDatePromises = new Map(promises);
+				releaseDates = dates;
 			}
 			
-			// Start fetching sequentially
-			fetchSequentially();
-			releaseDates = dates;
+			// Start initialization
+			initializeTracks();
 		}
 	});
 
