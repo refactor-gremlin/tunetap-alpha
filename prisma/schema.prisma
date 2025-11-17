@@ -1,0 +1,24 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model ReleaseDateCache {
+  id          Int       @id @default(autoincrement())
+  trackName   String
+  artistName  String
+  releaseDate String?   // YYYY-MM-DD format or null if not found
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([trackName, artistName])
+  @@index([trackName])
+  @@index([artistName])
+}
