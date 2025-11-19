@@ -5,7 +5,7 @@
 	import { ViewportSizeDetector } from '$lib/hooks/viewport-size.svelte.js';
 	import { GamePageState } from '$lib/game/GamePage.state.svelte.js';
 
-	import Button from '$lib/components/shadncn-ui/button/index.js';
+import { Button } from '$lib/components/shadncn-ui/button/index.js';
 	import * as Card from '$lib/components/shadncn-ui/card/index.js';
 	import PageHeader from '$lib/components/custom/PageHeader.svelte';
 
@@ -179,8 +179,8 @@
 					activeGapIndex={pageState.activeGapIndex}
 					activeCardIndex={pageState.activeCardIndex}
 					{gameStatus}
-					onPlaceFromGap={(e) => pageState.placeTrackFromGap(e.detail)}
-					onPlaceSameYear={(e) => pageState.placeTrackSameYear(e.detail)}
+					onPlaceFromGap={(gapIndex) => pageState.placeTrackFromGap(gapIndex)}
+					onPlaceSameYear={(cardIndex) => pageState.placeTrackSameYear(cardIndex)}
 				/>
 			</div>
 		</div>
@@ -188,7 +188,7 @@
 
 	{#if gameStatus === 'roundEnd' && roundResult && currentPlayer}
 		<ActiveView.RoundResultModal
-			{roundResult}
+			result={roundResult}
 			{currentPlayer}
 			{currentTrack}
 			exactYearBonusAwarded={pageState.exactYearBonusAwarded}
