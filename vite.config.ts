@@ -11,7 +11,6 @@ export default defineConfig({
 		}
 	},
 	ssr: {
-		noExternal: [],
-		external: ['@prisma/client', '@prisma/client/runtime', 'prisma']
+		noExternal: []
 	}
 });
