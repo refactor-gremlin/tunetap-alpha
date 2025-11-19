@@ -48,17 +48,7 @@
 	>
 		<ArrowLeftIcon class="size-4" />
 	</Button>
-	<Button
-		class="timeline-nav-button timeline-nav-right"
-		variant="outline"
-		size="icon"
-		onclick={onScrollRight}
-		disabled={!canScrollRight}
-		aria-label="Scroll timeline right"
-	>
-		<ArrowRightIcon class="size-4" />
-	</Button>
-	
+
 	<div class="zone-c-timeline-reel" bind:this={timelineReel}>
 		{#if timelineItems.length === 0}
 			<!-- Empty state - show at least one gap -->
@@ -105,6 +95,17 @@
 			{/each}
 		{/if}
 	</div>
+
+	<Button
+		class="timeline-nav-button timeline-nav-right"
+		variant="outline"
+		size="icon"
+		onclick={onScrollRight}
+		disabled={!canScrollRight}
+		aria-label="Scroll timeline right"
+	>
+		<ArrowRightIcon class="size-4" />
+	</Button>
 </div>
 
 <style>

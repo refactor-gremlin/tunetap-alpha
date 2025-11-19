@@ -55,7 +55,7 @@
 
 	.needle-indicator {
 		position: absolute;
-		left: 50%;
+		left: calc(50% + var(--needle-horizontal-offset, 0px));
 		bottom: 0;
 		width: 4px;
 		height: 45px;
@@ -69,7 +69,7 @@
 	.drop-button-wrapper {
 		position: absolute;
 		top: -65px;
-		left: 50%;
+		left: calc(50% + var(--needle-horizontal-offset, 0px));
 		transform: translateX(-50%) translateY(-10px);
 		pointer-events: auto;
 		opacity: 0;
