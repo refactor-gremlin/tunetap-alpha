@@ -80,24 +80,24 @@
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		gap: 2rem;
-		padding: 2rem;
+		gap: var(--stage-gap, 2rem);
+		padding: var(--stage-padding, 2rem);
 	}
 
 	.vinyl-container {
-		width: 200px;
-		height: 200px;
+		width: var(--vinyl-size, 200px);
+		height: var(--vinyl-size, 200px);
 		display: flex;
 		align-items: center;
 		justify-content: center;
 	}
 
 	.vinyl-record {
-		width: 200px;
-		height: 200px;
+		width: var(--vinyl-size, 200px);
+		height: var(--vinyl-size, 200px);
 		border-radius: 50%;
 		background: radial-gradient(circle, #1a1a1a 0%, #0a0a0a 100%);
-		border: 10px solid #2a2a2a;
+		border: var(--vinyl-border-width, 10px) solid #2a2a2a;
 		position: relative;
 		overflow: hidden;
 		display: flex;
@@ -120,17 +120,17 @@
 	}
 
 	.vinyl-placeholder {
-		font-size: 4rem;
+		font-size: calc(var(--vinyl-size, 200px) / 5);
 		color: var(--muted-foreground);
 	}
 
 	.vinyl-center {
 		position: absolute;
-		width: 40px;
-		height: 40px;
+		width: var(--vinyl-center-size, 40px);
+		height: var(--vinyl-center-size, 40px);
 		border-radius: 50%;
 		background: #0a0a0a;
-		border: 3px solid #2a2a2a;
+		border: calc(var(--vinyl-center-size, 40px) / 13.33) solid #2a2a2a;
 		z-index: 1;
 	}
 
@@ -151,26 +151,26 @@
 	}
 
 	.track-title {
-		font-size: 1.875rem;
+		font-size: var(--track-title-size, 1.875rem);
 		font-weight: bold;
 		color: var(--foreground);
 		margin-bottom: 0.75rem;
 	}
 
 	.track-artist {
-		font-size: 1.375rem;
+		font-size: var(--track-artist-size, 1.375rem);
 		color: var(--muted-foreground);
 		margin-bottom: 0.75rem;
 	}
 
 	.track-placeholder {
-		font-size: 1.5rem;
+		font-size: var(--track-placeholder-size, 1.5rem);
 		color: var(--muted-foreground);
 		font-style: italic;
 	}
 
 	.track-year {
-		font-size: 1.125rem;
+		font-size: var(--track-year-size, 1.125rem);
 		color: var(--primary);
 		font-weight: 600;
 		margin-top: 0.75rem;
@@ -178,7 +178,7 @@
 
 	.no-track-message {
 		color: var(--muted-foreground);
-		font-size: 1.375rem;
+		font-size: var(--track-artist-size, 1.375rem);
 	}
 
 	@keyframes rotate {

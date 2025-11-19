@@ -1,6 +1,6 @@
 <script lang="ts">
-	import TimelineReel from '$lib/components/custom/tunetap/desktop/timeline/TimelineReel.svelte';
-	import Needle from '$lib/components/custom/tunetap/desktop/needle/Needle.svelte';
+	import TimelineReel from '$lib/components/custom/tunetap/common/timeline/TimelineReel.svelte';
+	import Needle from '$lib/components/custom/tunetap/common/needle/Needle.svelte';
 
 	let timelineReel: HTMLDivElement | null = $state(null);
 	let canScrollLeft = $state(false);

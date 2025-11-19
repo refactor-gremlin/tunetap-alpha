@@ -44,7 +44,7 @@
 
 <style>
 	.zone-b-needle {
-		flex: 0 0 70px;
+		flex: 0 0 var(--needle-height, 80px);
 		position: relative;
 		z-index: 40;
 		pointer-events: none;
@@ -57,18 +57,18 @@
 		position: absolute;
 		left: calc(50% + var(--needle-horizontal-offset, 0px));
 		bottom: 0;
-		width: 4px;
-		height: 45px;
+		width: var(--needle-width, 5px);
+		height: var(--needle-indicator-height, 50px);
 		background: var(--needle-color);
 		border-radius: 2px;
-		box-shadow: 0 0 9px var(--needle-color);
+		box-shadow: 0 0 10px var(--needle-color);
 		/* Translate X -50% ensures the center of the needle aligns with left: 50% */
 		transform: translateX(-50%) translateY(2px);
 	}
 
 	.drop-button-wrapper {
 		position: absolute;
-		top: -65px;
+		top: var(--needle-button-top, -70px);
 		left: calc(50% + var(--needle-horizontal-offset, 0px));
 		transform: translateX(-50%) translateY(-10px);
 		pointer-events: auto;
@@ -82,4 +82,3 @@
 		transform: translateX(-50%) translateY(-10px);
 	}
 </style>
-

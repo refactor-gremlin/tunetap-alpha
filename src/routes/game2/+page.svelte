@@ -14,62 +14,35 @@
 	import { ViewportSizeDetector } from '$lib/hooks/viewport-size.svelte.js';
 	import { TuneTapGame } from '$lib/game/TuneTapGame.svelte.js';
 
-	// Import components (mobile)
-	import UnifiedGameHeaderMobile from '$lib/components/custom/tunetap/mobile/header/UnifiedGameHeader.svelte';
-	import RoundResultModalMobile from '$lib/components/custom/tunetap/mobile/dialogs/RoundResultModal.svelte';
-	import GameEndScreenMobile from '$lib/components/custom/tunetap/mobile/dialogs/GameEndScreen.svelte';
-	import PlayerSetupMobile from '$lib/components/custom/tunetap/mobile/controls/PlayerSetup.svelte';
-	import StageMobile from '$lib/components/custom/tunetap/mobile/stage/Stage.svelte';
-	import NeedleMobile from '$lib/components/custom/tunetap/mobile/needle/Needle.svelte';
-	import TimelineReelMobile from '$lib/components/custom/tunetap/mobile/timeline/TimelineReel.svelte';
-
-	// Import components (desktop)
-	import UnifiedGameHeaderDesktop from '$lib/components/custom/tunetap/desktop/header/UnifiedGameHeader.svelte';
-	import RoundResultModalDesktop from '$lib/components/custom/tunetap/desktop/dialogs/RoundResultModal.svelte';
-	import GameEndScreenDesktop from '$lib/components/custom/tunetap/desktop/dialogs/GameEndScreen.svelte';
-	import PlayerSetupDesktop from '$lib/components/custom/tunetap/desktop/controls/PlayerSetup.svelte';
-	import StageDesktop from '$lib/components/custom/tunetap/desktop/stage/Stage.svelte';
-	import NeedleDesktop from '$lib/components/custom/tunetap/desktop/needle/Needle.svelte';
-	import TimelineReelDesktop from '$lib/components/custom/tunetap/desktop/timeline/TimelineReel.svelte';
-
-	// Import components (tablet)
-	import UnifiedGameHeaderTablet from '$lib/components/custom/tunetap/tablet/header/UnifiedGameHeader.svelte';
-	import RoundResultModalTablet from '$lib/components/custom/tunetap/tablet/dialogs/RoundResultModal.svelte';
-	import GameEndScreenTablet from '$lib/components/custom/tunetap/tablet/dialogs/GameEndScreen.svelte';
-	import PlayerSetupTablet from '$lib/components/custom/tunetap/tablet/controls/PlayerSetup.svelte';
-	import StageTablet from '$lib/components/custom/tunetap/tablet/stage/Stage.svelte';
-	import NeedleTablet from '$lib/components/custom/tunetap/tablet/needle/Needle.svelte';
-	import TimelineReelTablet from '$lib/components/custom/tunetap/tablet/timeline/TimelineReel.svelte';
+	// Import common components
+	import Needle from '$lib/components/custom/tunetap/common/needle/Needle.svelte';
+	import TimelineReel from '$lib/components/custom/tunetap/common/timeline/TimelineReel.svelte';
+	import Stage from '$lib/components/custom/tunetap/common/stage/Stage.svelte';
+	import UnifiedGameHeader from '$lib/components/custom/tunetap/common/header/UnifiedGameHeader.svelte';
+	import PlayerSetup from '$lib/components/custom/tunetap/common/controls/PlayerSetup.svelte';
+	import RoundResultModal from '$lib/components/custom/tunetap/common/dialogs/RoundResultModal.svelte';
+	import GameEndScreen from '$lib/components/custom/tunetap/common/dialogs/GameEndScreen.svelte';
 
 	// Component view maps
 	const MobileView = {
-		Header: UnifiedGameHeaderMobile,
-		Stage: StageMobile,
-		Needle: NeedleMobile,
-		Reel: TimelineReelMobile,
-		PlayerSetup: PlayerSetupMobile,
-		RoundResultModal: RoundResultModalMobile,
-		GameEndScreen: GameEndScreenMobile
+		Header: UnifiedGameHeader,
+		PlayerSetup: PlayerSetup,
+		RoundResultModal: RoundResultModal,
+		GameEndScreen: GameEndScreen
 	};
 
 	const TabletView = {
-		Header: UnifiedGameHeaderTablet,
-		Stage: StageTablet,
-		Needle: NeedleTablet,
-		Reel: TimelineReelTablet,
-		PlayerSetup: PlayerSetupTablet,
-		RoundResultModal: RoundResultModalTablet,
-		GameEndScreen: GameEndScreenTablet
+		Header: UnifiedGameHeader,
+		PlayerSetup: PlayerSetup,
+		RoundResultModal: RoundResultModal,
+		GameEndScreen: GameEndScreen
 	};
 
 	const DesktopView = {
-		Header: UnifiedGameHeaderDesktop,
-		Stage: StageDesktop,
-		Needle: NeedleDesktop,
-		Reel: TimelineReelDesktop,
-		PlayerSetup: PlayerSetupDesktop,
-		RoundResultModal: RoundResultModalDesktop,
-		GameEndScreen: GameEndScreenDesktop
+		Header: UnifiedGameHeader,
+		PlayerSetup: PlayerSetup,
+		RoundResultModal: RoundResultModal,
+		GameEndScreen: GameEndScreen
 	};
 
 	// Viewport detection
@@ -80,6 +53,37 @@
 	const ActiveView = $derived(
 		viewportSize === 'mobile' ? MobileView : viewportSize === 'tablet' ? TabletView : DesktopView
 	);
+
+	// Define dynamic styles for common components
+	const reelStyles = $derived(() => {
+		if (viewportSize === 'mobile') {
+			return '--timeline-card-width: 140px; --timeline-gap-width: 100px; --timeline-card-padding: 0.75rem;';
+		}
+		if (viewportSize === 'tablet') {
+			return '--timeline-card-width: 160px; --timeline-gap-width: 110px; --timeline-card-padding: 0.875rem;';
+		}
+		return '--timeline-card-width: 180px; --timeline-gap-width: 120px; --timeline-card-padding: 1rem;';
+	});
+
+	const needleStyles = $derived(() => {
+		if (viewportSize === 'mobile') {
+			return '--needle-height: 60px; --needle-width: 4px; --needle-indicator-height: 40px; --needle-button-top: -60px;';
+		}
+		if (viewportSize === 'tablet') {
+			return '--needle-height: 70px; --needle-width: 4px; --needle-indicator-height: 45px; --needle-button-top: -65px;';
+		}
+		return '--needle-height: 80px; --needle-width: 5px; --needle-indicator-height: 50px; --needle-button-top: -70px;';
+	});
+
+	const stageStyles = $derived(() => {
+		if (viewportSize === 'mobile') {
+			return '--stage-gap: 1.5rem; --stage-padding: 1rem; --vinyl-size: 160px; --vinyl-border-width: 8px; --vinyl-center-size: 30px; --track-title-size: 1.5rem; --track-artist-size: 1.125rem; --track-placeholder-size: 1.25rem; --track-year-size: 1rem;';
+		}
+		if (viewportSize === 'tablet') {
+			return '--stage-gap: 1.75rem; --stage-padding: 1.5rem; --vinyl-size: 180px; --vinyl-border-width: 8px; --vinyl-center-size: 35px; --track-title-size: 1.625rem; --track-artist-size: 1.25rem; --track-placeholder-size: 1.25rem; --track-year-size: 1rem;';
+		}
+		return '--stage-gap: 2rem; --stage-padding: 2rem; --vinyl-size: 200px; --vinyl-border-width: 10px; --vinyl-center-size: 40px; --track-title-size: 1.875rem; --track-artist-size: 1.375rem; --track-placeholder-size: 1.5rem; --track-year-size: 1.125rem;';
+	});
 
 	// Get tracks from navigation state
 	let tracks = $state<Track[]>([]);
@@ -638,7 +642,7 @@
 		{/if}
 
 		<!-- Zone A: The Stage (Top 40%) -->
-		<ActiveView.Stage
+		<Stage
 			{currentTrack}
 			{isPlaying}
 			{showSongName}
@@ -646,11 +650,12 @@
 			{showReleaseDates}
 			{blurred}
 			onRevealClick={handleRevealClick}
+			style={stageStyles}
 		/>
 
 			<div class="timeline-needle-zone">
 			<!-- Zone C: The Timeline Reel (Bottom Flex) -->
-			<ActiveView.Reel
+			<TimelineReel
 				bind:timelineReel
 				{timelineItems}
 				{canScrollLeft}
@@ -660,15 +665,16 @@
 				{showReleaseDates}
 				onScrollLeft={scrollTimelineLeft}
 				onScrollRight={scrollTimelineRight}
+				style={reelStyles}
 			/>
 
 			<div
 				class="timeline-needle-overlay"
 				bind:this={needleOverlayEl}
-				style={`--needle-horizontal-offset: ${needleHorizontalOffset}px;`}
+				style={`--needle-horizontal-offset: ${needleHorizontalOffset}px; ${needleStyles}`}
 			>
 				<!-- Zone B: The Needle (Middle Anchor) -->
-				<ActiveView.Needle
+				<Needle
 					{showDropButton}
 					{activeGapIndex}
 					{activeCardIndex}
