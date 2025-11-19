@@ -11,6 +11,7 @@
 		index?: number;
 		gapIndex?: number;
 		sameYearCount?: number;
+	sameYearTracks?: Track[];
 	};
 
 	let {
@@ -160,7 +161,7 @@
 		margin-top: 0; /* Remove negative margin if using flex alignment */
 	}
 
-	.timeline-gap.active .gap-marker {
+	:global(.timeline-gap.active .gap-marker) {
 		width: 4px;
 		background: var(--gap-marker-active);
 		box-shadow: 0 0 12px var(--gap-marker-active);
@@ -177,7 +178,7 @@
 	}
 
 	/* Timeline Navigation Buttons */
-	.timeline-nav-button {
+	:global(.timeline-nav-button) {
 		position: absolute;
 		top: 50%;
 		transform: translateY(-50%);
@@ -192,21 +193,21 @@
 			background-color 0.2s ease;
 	}
 
-	.timeline-nav-button:hover:not(:disabled) {
+	:global(.timeline-nav-button:hover:not(:disabled)) {
 		background: var(--accent);
 		transform: translateY(-50%) scale(1.05);
 	}
 
-	.timeline-nav-button:disabled {
+	:global(.timeline-nav-button:disabled) {
 		opacity: 0.3;
 		cursor: not-allowed;
 	}
 
-	.timeline-nav-left {
+	:global(.timeline-nav-left) {
 		left: 1rem;
 	}
 
-	.timeline-nav-right {
+	:global(.timeline-nav-right) {
 		right: 1rem;
 	}
 </style>

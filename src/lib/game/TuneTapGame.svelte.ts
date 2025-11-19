@@ -270,6 +270,7 @@ export class TuneTapGame {
 		index?: number;
 		gapIndex?: number;
 		sameYearCount?: number;
+		sameYearTracks?: Track[];
 	}> {
 		if (!currentPlayer || !this.players.length) {
 			// Return at least one gap if no player
@@ -282,6 +283,7 @@ export class TuneTapGame {
 			index?: number;
 			gapIndex?: number;
 			sameYearCount?: number; // Number of other tracks in the same year
+			sameYearTracks?: Track[];
 		}> = [];
 
 		// Add gap before first card
@@ -330,11 +332,19 @@ export class TuneTapGame {
 				const isFirstInGroup = yearGroup?.startIndex === index;
 
 				if (isFirstInGroup || !yearGroup) {
+					const sameYearTracks =
+						yearGroup && yearGroup.count > 1
+							? currentPlayer.timeline.slice(
+									yearGroup.startIndex + 1,
+									yearGroup.startIndex + yearGroup.count
+								)
+							: undefined;
 					items.push({
 						type: 'card',
 						track,
 						index,
-						sameYearCount: yearGroup && yearGroup.count > 1 ? yearGroup.count - 1 : undefined
+						sameYearCount: yearGroup && yearGroup.count > 1 ? yearGroup.count - 1 : undefined,
+						sameYearTracks
 					});
 
 					// Only add gap after cards that are actually shown

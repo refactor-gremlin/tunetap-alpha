@@ -15,6 +15,7 @@
 		index?: number;
 		gapIndex?: number;
 		sameYearCount?: number;
+	sameYearTracks?: Track[];
 	};
 
 	const timelineItems: TimelineItem[] = [

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Track } from '$lib/types.js';
 	import * as Dialog from '$lib/components/shadncn-ui/dialog/index.js';
+	import * as Tooltip from '$lib/components/shadncn-ui/tooltip/index.js';
 
 	type TimelineItem = {
 		type: 'card' | 'gap';
@@ -8,6 +9,7 @@
 		index?: number;
 		gapIndex?: number;
 		sameYearCount?: number;
+	sameYearTracks?: Track[];
 	};
 
 	let {
@@ -21,14 +23,17 @@
 	} = $props();
 
 	let dialogOpen = $state(false);
+const releaseYear = $derived(item.track?.firstReleaseDate?.slice(0, 4) ?? null);
+const overlappingTracks = $derived(item.sameYearTracks ?? []);
+const hasSameYearOverlap = $derived(overlappingTracks.length > 0);
 </script>
 
 {#if item.track}
 	<div
 		class="timeline-card"
 		data-index={item.index}
-		on:click={() => (dialogOpen = true)}
-		on:keydown={(e) => {
+		onclick={() => (dialogOpen = true)}
+		onkeydown={(e) => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				dialogOpen = true;
 			}
@@ -43,11 +48,36 @@
 			{:else}
 				<div class="cover-placeholder">🎵</div>
 			{/if}
-			{#if item.track.firstReleaseDate}
-				<div class="card-year">{item.track.firstReleaseDate.slice(0, 4)}</div>
+			{#if releaseYear}
+				<div class="card-year">{releaseYear}</div>
 			{/if}
-			{#if item.sameYearCount !== undefined && item.sameYearCount > 0}
-				<div class="card-same-year-badge">+{item.sameYearCount}</div>
+			{#if hasSameYearOverlap}
+				<Tooltip.Provider>
+					<Tooltip.Root>
+						<Tooltip.Trigger>
+							<div class="card-same-year-badge" aria-label="Multiple tracks share this year">
+								+{overlappingTracks.length}
+							</div>
+						</Tooltip.Trigger>
+						<Tooltip.Content side="bottom" align="center">
+							<p class="tooltip-title">
+								{overlappingTracks.length} other {overlappingTracks.length === 1 ? 'track' : 'tracks'} share
+								{releaseYear ? ` ${releaseYear}` : ' this year'}.
+							</p>
+							<ul class="tooltip-track-list">
+								{#each overlappingTracks as track}
+									<li>
+										<span class="tooltip-track-name">{track.name}</span>
+										{#if track.artists?.length}
+											<span class="tooltip-track-artist"> — {track.artists[0]}</span>
+										{/if}
+									</li>
+								{/each}
+							</ul>
+							<p class="tooltip-hint">Use Same Year placement to stack them.</p>
+						</Tooltip.Content>
+					</Tooltip.Root>
+				</Tooltip.Provider>
 			{/if}
 		</div>
 		{#if showSongName || showArtistName}
@@ -55,8 +85,8 @@
 				{#if showSongName}
 					<div class="card-name">{item.track.name}</div>
 				{/if}
-				{#if item.track.firstReleaseDate}
-					<div class="card-year-text">{item.track.firstReleaseDate.slice(0, 4)}</div>
+				{#if releaseYear}
+					<div class="card-year-text">{releaseYear}</div>
 				{/if}
 				{#if showArtistName}
 					<div class="card-artist">{item.track.artists[0]}</div>
@@ -213,6 +243,40 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	.tooltip-title {
+		font-weight: 600;
+		margin: 0;
+	}
+
+	.tooltip-hint {
+		margin: 0.25rem 0 0;
+		font-size: 0.75rem;
+		color: rgb(255 255 255 / 0.8);
+	}
+
+	.tooltip-track-list {
+		list-style: none;
+		padding: 0;
+		margin: 0.5rem 0 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	.tooltip-track-list li {
+		font-size: 0.8rem;
+		color: rgb(255 255 255 / 0.95);
+	}
+
+	.tooltip-track-name {
+		font-weight: 600;
+	}
+
+	.tooltip-track-artist {
+		font-weight: 400;
+		opacity: 0.9;
 	}
 
 	/* Dialog styles */
