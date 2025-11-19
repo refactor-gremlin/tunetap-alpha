@@ -1,4 +1,5 @@
 export interface Track {
+	id: string; // Spotify track ID
 	name: string;
 	artists: string[];
 	audioUrl?: string; // YouTube URL or Spotify preview URL

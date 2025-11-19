@@ -155,9 +155,9 @@ export function generateYearMarkers(
  */
 export function validateTimelineOrder(tracks: Track[]): boolean {
 	for (let i = 0; i < tracks.length - 1; i++) {
-		const year1 = getReleaseYear(tracks[i]);
-		const year2 = getReleaseYear(tracks[i + 1]);
-		if (year1 === null || year2 === null || year1 > year2) {
+		const date1 = tracks[i].firstReleaseDate;
+		const date2 = tracks[i + 1].firstReleaseDate;
+		if (!date1 || !date2 || date1 > date2) {
 			return false;
 		}
 	}

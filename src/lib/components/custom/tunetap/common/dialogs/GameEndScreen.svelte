@@ -23,6 +23,13 @@
 			{#if winner}
 				<h2 class="winner">🎉 {winner.name} Wins! 🎉</h2>
 				<p class="winner-score">Score: {winner.score}/10</p>
+			{:else}
+				<h2 class="no-winner">No Winner!</h2>
+				<p class="out-of-tracks-message">
+					You've run out of tracks.
+					<br />
+					Start a new game with a larger playlist for more rounds.
+				</p>
 			{/if}
 			<div class="final-scores">
 				<h3>Final Scores:</h3>
@@ -63,6 +70,19 @@
 		font-size: 1.5rem;
 		margin: 0;
 		font-weight: 600;
+	}
+
+	.no-winner {
+		font-size: 2rem;
+		margin: 0;
+		color: var(--foreground);
+	}
+
+	.out-of-tracks-message {
+		font-size: 1.125rem;
+		color: var(--muted-foreground);
+		margin: -1rem 0 0 0;
+		line-height: 1.6;
 	}
 
 	.final-scores {

@@ -11,6 +11,7 @@ export class TuneTapGame {
 	gameStatus = $state<GameStatus>('setup');
 	roundResult = $state<PlacementResult | null>(null);
 	turnNumber = $state(1);
+	totalTurns = $state(0);
 
 	// Derived
 	currentPlayer = $derived(
@@ -22,13 +23,6 @@ export class TuneTapGame {
 	);
 
 	winner = $derived(this.players.find((p) => p.score >= 10));
-
-	totalTurns = $derived(
-		Math.ceil(
-			(this.availableTracks.length + this.players.reduce((sum, p) => sum + p.timeline.length, 0)) /
-				this.players.length
-		)
-	);
 
 	tracksPlaced = $derived(this.players.reduce((sum, p) => sum + p.timeline.length, 0));
 
@@ -58,6 +52,8 @@ export class TuneTapGame {
 			this.availableTracks = this.availableTracks.slice(1);
 		}
 
+		this.totalTurns = this.availableTracks.length;
+
 		this.gameStatus = 'playing';
 		this.currentPlayerIndex = 0;
 		this.turnNumber = 1;
@@ -86,112 +82,86 @@ export class TuneTapGame {
 	): PlacementResult {
 		const player = this.players[playerIndex];
 		const trackYear = getReleaseYear(track);
-		if (!trackYear) {
+		const trackDate = track.firstReleaseDate;
+
+		if (!trackDate) {
 			return { correct: false, correctPosition: -1 };
 		}
 
-		// 1. Calculate the correct chronological index where this track SHOULD go
+		// 1. Calculate the correct chronological index for the track using full date string comparison.
 		const correctIndex = player.timeline.findIndex((t) => {
-			const tYear = getReleaseYear(t) || 0;
-			return tYear > trackYear; // Find first track newer than current
+			const tDate = t.firstReleaseDate || '0';
+			return tDate > trackDate;
 		});
 		const actualCorrectIndex = correctIndex === -1 ? player.timeline.length : correctIndex;
 
-		// 2. Determine where the user TRIED to put it
-		let userTargetIndex = 0;
-		const newTimeline = [...player.timeline];
-
+		// 2. Determine the user's target index based on their action.
+		let userTargetIndex: number;
 		if (placementType === 'before') {
-			if (referenceIndex !== null) {
-				userTargetIndex = referenceIndex;
-				// Check if placing before a track in the same year - this should be incorrect
-				if (referenceIndex >= 0 && referenceIndex < newTimeline.length) {
-					const referenceTrack = newTimeline[referenceIndex];
-					const referenceYear = getReleaseYear(referenceTrack);
-					if (referenceYear !== null && referenceYear === trackYear) {
-						// Same year - mark as incorrect
-						return { correct: false, correctPosition: userTargetIndex };
-					}
-				}
-			} else {
-				userTargetIndex = newTimeline.findIndex((t) => {
-					const tYear = getReleaseYear(t);
-					return tYear !== null && tYear >= trackYear;
-				});
-				if (userTargetIndex === -1) userTargetIndex = newTimeline.length;
-			}
+			userTargetIndex = referenceIndex ?? 0;
 		} else if (placementType === 'after') {
-			if (referenceIndex !== null) {
-				userTargetIndex = referenceIndex + 1;
-				// Check if placing after a track in the same year - this should be incorrect
-				if (referenceIndex >= 0 && referenceIndex < newTimeline.length) {
-					const referenceTrack = newTimeline[referenceIndex];
-					const referenceYear = getReleaseYear(referenceTrack);
-					if (referenceYear !== null && referenceYear === trackYear) {
-						// Same year - mark as incorrect
-						return { correct: false, correctPosition: userTargetIndex };
-					}
-				}
-			} else {
-				userTargetIndex = newTimeline.findIndex((t) => {
-					const tYear = getReleaseYear(t);
-					return tYear !== null && tYear > trackYear;
-				});
-				if (userTargetIndex === -1) userTargetIndex = newTimeline.length;
-			}
+			userTargetIndex = referenceIndex !== null ? referenceIndex + 1 : player.timeline.length;
 		} else if (placementType === 'same' && year !== undefined) {
-			userTargetIndex = newTimeline.findIndex((t) => {
-				const tYear = getReleaseYear(t);
-				return tYear !== null && tYear > year;
-			});
-			if (userTargetIndex === -1) userTargetIndex = newTimeline.length;
+			// Find the first song with a year greater than the target year.
+			const firstNewerSongIndex = player.timeline.findIndex(
+				(t) => (getReleaseYear(t) ?? 0) > year
+			);
+			userTargetIndex =
+				firstNewerSongIndex === -1 ? player.timeline.length : firstNewerSongIndex;
 		} else {
-			userTargetIndex = newTimeline.findIndex((t) => {
-				const tYear = getReleaseYear(t);
-				return tYear !== null && tYear >= trackYear;
-			});
-			if (userTargetIndex === -1) userTargetIndex = newTimeline.length;
+			// Fallback for initial placement or other cases
+			userTargetIndex = player.timeline.length;
 		}
 
-		// 3. Check for same-year adjacency violations (only if not using 'same' placement)
-		if (placementType !== 'same') {
-			// Check the track before (if exists)
-			if (userTargetIndex > 0) {
-				const prevTrack = newTimeline[userTargetIndex - 1];
-				const prevYear = getReleaseYear(prevTrack);
-				if (prevYear !== null && prevYear === trackYear) {
-					// Adjacent to a track in the same year - mark as incorrect
-					return { correct: false, correctPosition: userTargetIndex };
-				}
+		// New rule: if placing 'before' or 'after' a track of the same year, it's incorrect.
+		if (placementType === 'before' || placementType === 'after') {
+			const prevTrack = player.timeline[userTargetIndex - 1];
+			const nextTrack = player.timeline[userTargetIndex];
+
+			if (prevTrack && getReleaseYear(prevTrack) === trackYear) {
+				return { correct: false, correctPosition: actualCorrectIndex };
 			}
-			// Check the track after (if exists)
-			if (userTargetIndex < newTimeline.length) {
-				const nextTrack = newTimeline[userTargetIndex];
-				const nextYear = getReleaseYear(nextTrack);
-				if (nextYear !== null && nextYear === trackYear) {
-					// Adjacent to a track in the same year - mark as incorrect
-					return { correct: false, correctPosition: userTargetIndex };
-				}
+			if (nextTrack && getReleaseYear(nextTrack) === trackYear) {
+				return { correct: false, correctPosition: actualCorrectIndex };
 			}
 		}
 
-		// 4. Compare target vs correct index
-		const isCorrect = userTargetIndex === actualCorrectIndex;
+		// 3. Check if the placement is correct.
+		// The move is correct if the user's target index matches the actual correct index.
+		// For 'same' year placements, the check is slightly different: the new track's year
+		// must match the reference track's year.
+		let isCorrect: boolean;
+		if (placementType === 'same') {
+			if (referenceIndex !== null) {
+				const referenceTrack = player.timeline[referenceIndex];
+				const referenceYear = getReleaseYear(referenceTrack);
+				isCorrect = referenceYear === trackYear;
+			} else {
+				isCorrect = false;
+			}
+		} else {
+			isCorrect = userTargetIndex === actualCorrectIndex;
+		}
 
-		// 5. Validate chronological order
-		newTimeline.splice(userTargetIndex, 0, track);
-		let correct = isCorrect;
+		// 4. Final verification: ensure the new timeline is still in chronological order.
+		// This is a safeguard.
+		const newTimeline = [...player.timeline];
+		// For 'same' year placements, the user isn't picking an index, so we check
+		// against the actual correct chronological position for the safeguard.
+		const insertionIndex = placementType === 'same' ? actualCorrectIndex : userTargetIndex;
+		newTimeline.splice(insertionIndex, 0, track);
+		let isChronological = true;
 		for (let i = 0; i < newTimeline.length - 1; i++) {
-			const year1 = getReleaseYear(newTimeline[i]);
-			const year2 = getReleaseYear(newTimeline[i + 1]);
-			// Allow same year (year1 === year2), but not wrong order (year1 > year2)
-			if (year1 === null || year2 === null || year1 > year2) {
-				correct = false;
+			const date1 = newTimeline[i].firstReleaseDate;
+			const date2 = newTimeline[i + 1].firstReleaseDate;
+			if (date1 && date2 && date1 > date2) {
+				isChronological = false;
 				break;
 			}
 		}
 
-		return { correct, correctPosition: actualCorrectIndex };
+		// The placement is only truly correct if it maintains chronological order.
+		return { correct: isCorrect && isChronological, correctPosition: actualCorrectIndex };
 	}
 
 	// Helper function to place a track for a specific player (for auto-placement)
@@ -209,20 +179,8 @@ export class TuneTapGame {
 			result.correctPosition >= 0 ? result.correctPosition : player.timeline.length;
 		player.timeline.splice(insertIndex, 0, track);
 
-		// Ensure timeline is sorted chronologically (oldest to newest, left to right)
-		player.timeline.sort((a, b) => {
-			const yearA = getReleaseYear(a);
-			const yearB = getReleaseYear(b);
-			if (yearA === null && yearB === null) return 0;
-			if (yearA === null) return 1;
-			if (yearB === null) return -1;
-			return yearA - yearB;
-		});
-
 		if (result.correct) {
 			player.score += 1;
-		} else {
-			player.score = 0;
 		}
 
 		return result;
@@ -231,27 +189,12 @@ export class TuneTapGame {
 	// Place track from gap selection
 	placeTrackFromGap(gapIndex: number): PlacementResult | null {
 		if (!this.currentTrack || !this.currentPlayer) return null;
-
 		const player = this.currentPlayer;
-		let placementType: PlacementType = 'before';
-		let referenceIndex: number | null = null;
 
-		// Gap index represents position between cards
-		// gapIndex 0 = before first card
-		// gapIndex 1 = between first and second card, etc.
-		if (gapIndex === 0) {
-			// Before timeline start
-			placementType = 'before';
-			referenceIndex = null;
-		} else if (gapIndex > player.timeline.length) {
-			// After timeline end
-			placementType = 'after';
-			referenceIndex = null;
-		} else {
-			// Between cards - use 'before' the card at gapIndex
-			placementType = 'before';
-			referenceIndex = gapIndex - 1;
-		}
+		// Determine the placement relative to the timeline.
+		// A gap selection always implies placing 'before' the item at that index.
+		const placementType: PlacementType = 'before';
+		const referenceIndex = gapIndex === 0 ? null : gapIndex;
 
 		const result = this.validatePlacement(
 			this.currentPlayerIndex,
@@ -260,40 +203,7 @@ export class TuneTapGame {
 			referenceIndex
 		);
 
-		if (result.correct) {
-			player.score += 1;
-		} else {
-			player.score = 0;
-		}
-
-		// Only add track to timeline if guess was correct
-		if (result.correct) {
-			// Insert at the chronologically correct position (calculated by validatePlacement)
-			const insertIndex =
-				result.correctPosition >= 0 ? result.correctPosition : player.timeline.length;
-			player.timeline.splice(insertIndex, 0, this.currentTrack);
-
-			// Ensure timeline is sorted chronologically (oldest to newest, left to right)
-			player.timeline.sort((a, b) => {
-				const yearA = getReleaseYear(a);
-				const yearB = getReleaseYear(b);
-				if (yearA === null && yearB === null) return 0;
-				if (yearA === null) return 1;
-				if (yearB === null) return -1;
-				return yearA - yearB;
-			});
-		}
-
-		this.availableTracks = this.availableTracks.filter((t) => t !== this.currentTrack);
-		this.roundResult = result;
-		this.gameStatus = 'roundEnd';
-
-		if (player.score >= 10) {
-			setTimeout(() => {
-				this.endGame();
-			}, 2000);
-		}
-
+		this.handlePlacementResult(result);
 		return result;
 	}
 
@@ -301,65 +211,43 @@ export class TuneTapGame {
 	placeTrackSameYear(cardIndex: number): PlacementResult | null {
 		if (!this.currentTrack || !this.currentPlayer) return null;
 
-		const player = this.currentPlayer;
-
-		// Validate card index
-		if (cardIndex < 0 || cardIndex >= player.timeline.length) {
-			return null;
-		}
-
-		// Get the reference track at the card index
-		const referenceTrack = player.timeline[cardIndex];
+		const referenceTrack = this.currentPlayer.timeline[cardIndex];
 		const referenceYear = getReleaseYear(referenceTrack);
+		if (referenceYear === null) return null;
 
-		if (referenceYear === null) {
-			return null;
-		}
-
-		// Validate placement with same-year type
 		const result = this.validatePlacement(
 			this.currentPlayerIndex,
 			this.currentTrack,
 			'same',
-			null,
+			cardIndex,
 			referenceYear
 		);
 
+		this.handlePlacementResult(result);
+		return result;
+	}
+
+	private handlePlacementResult(result: PlacementResult) {
+		if (!this.currentTrack || !this.currentPlayer) return;
+
+		const player = this.currentPlayer;
 		if (result.correct) {
 			player.score += 1;
-		} else {
-			player.score = 0;
+			player.timeline.splice(result.correctPosition, 0, this.currentTrack);
 		}
 
-		// Only add track to timeline if guess was correct
-		if (result.correct) {
-			// Insert at the chronologically correct position (calculated by validatePlacement)
-			const insertIndex =
-				result.correctPosition >= 0 ? result.correctPosition : player.timeline.length;
-			player.timeline.splice(insertIndex, 0, this.currentTrack);
-
-			// Ensure timeline is sorted chronologically (oldest to newest, left to right)
-			player.timeline.sort((a, b) => {
-				const yearA = getReleaseYear(a);
-				const yearB = getReleaseYear(b);
-				if (yearA === null && yearB === null) return 0;
-				if (yearA === null) return 1;
-				if (yearB === null) return -1;
-				return yearA - yearB;
-			});
+		const trackIndexToRemove = this.availableTracks.findIndex(
+			(t) => t.id === this.currentTrack!.id
+		);
+		if (trackIndexToRemove > -1) {
+			this.availableTracks.splice(trackIndexToRemove, 1);
 		}
-
-		this.availableTracks = this.availableTracks.filter((t) => t !== this.currentTrack);
 		this.roundResult = result;
 		this.gameStatus = 'roundEnd';
 
 		if (player.score >= 10) {
-			setTimeout(() => {
-				this.endGame();
-			}, 2000);
+			setTimeout(() => this.endGame(), 2000);
 		}
-
-		return result;
 	}
 
 	nextTurn() {

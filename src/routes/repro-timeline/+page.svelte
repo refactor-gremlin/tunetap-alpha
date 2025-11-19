@@ -1,6 +1,7 @@
 <script lang="ts">
 	import TimelineReel from '$lib/components/custom/tunetap/common/timeline/TimelineReel.svelte';
 	import Needle from '$lib/components/custom/tunetap/common/needle/Needle.svelte';
+	import type { Track } from '$lib/types.js';
 
 	let timelineReel: HTMLDivElement | null = $state(null);
 	let canScrollLeft = $state(false);
@@ -8,16 +9,26 @@
 	let needleOverlayEl: HTMLDivElement | null = $state(null);
 	let needleHorizontalOffset = $state(0);
 
-	const timelineItems = [
+	type TimelineItem = {
+		type: 'card' | 'gap';
+		track?: Track;
+		index?: number;
+		gapIndex?: number;
+		sameYearCount?: number;
+	};
+
+	const timelineItems: TimelineItem[] = [
 		{ type: 'gap', gapIndex: 0 },
 		{
 			type: 'card',
 			index: 0,
 			track: {
+				id: '1',
 				name: 'Test Track 1',
 				artists: ['Artist 1'],
 				firstReleaseDate: '2000-01-01',
-				coverImage: null
+				coverImage: undefined,
+				status: 'found'
 			}
 		},
 		{ type: 'gap', gapIndex: 1 },
@@ -25,10 +36,12 @@
 			type: 'card',
 			index: 1,
 			track: {
+				id: '2',
 				name: 'Test Track 2',
 				artists: ['Artist 2'],
 				firstReleaseDate: '2005-01-01',
-				coverImage: null
+				coverImage: undefined,
+				status: 'found'
 			}
 		},
 		{ type: 'gap', gapIndex: 2 }

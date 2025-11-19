@@ -1,376 +1,306 @@
 <script lang="ts">
-	import type { Track } from '$lib/types';
 	import { page } from '$app/stores';
-	import {
-		fetchFirstReleaseDate,
-		getQueueSize,
-		getCachedReleaseDatesBatchQuery
-	} from './musicbrainz.remote';
-	import { untrack } from 'svelte';
-	import { useInterval } from 'runed';
-	import { Button } from '$lib/components/shadncn-ui/button/index.js';
+	import { onMount } from 'svelte';
+
+	import { ViewportSizeDetector } from '$lib/hooks/viewport-size.svelte.js';
+	import { GamePageState } from '$lib/game/GamePage.state.svelte.js';
+
+	import Button from '$lib/components/shadncn-ui/button/index.js';
 	import * as Card from '$lib/components/shadncn-ui/card/index.js';
-	import { Badge } from '$lib/components/shadncn-ui/badge/index.js';
-	import { Spinner } from '$lib/components/shadncn-ui/spinner/index.js';
-	import * as Table from '$lib/components/shadncn-ui/table/index.js';
 	import PageHeader from '$lib/components/custom/PageHeader.svelte';
 
-	// Get tracks from navigation state
-	let tracks = $state<Track[]>([]);
-	let currentTrackIndex = $state(0);
-	let audioElement: HTMLAudioElement | null = $state(null);
-	let releaseDatePromises = $state<Map<number, Promise<string | undefined>>>(new Map());
-	let releaseDates = $state<Map<number, string | undefined>>(new Map());
-	let hasInitialized = $state(false);
+	// Import common components
+	import Needle from '$lib/components/custom/tunetap/common/needle/Needle.svelte';
+	import TimelineReel from '$lib/components/custom/tunetap/common/timeline/TimelineReel.svelte';
+	import Stage from '$lib/components/custom/tunetap/common/stage/Stage.svelte';
+	import UnifiedGameHeader from '$lib/components/custom/tunetap/common/header/UnifiedGameHeader.svelte';
+	import PlayerSetup from '$lib/components/custom/tunetap/common/controls/PlayerSetup.svelte';
+	import RoundResultModal from '$lib/components/custom/tunetap/common/dialogs/RoundResultModal.svelte';
+	import GameEndScreen from '$lib/components/custom/tunetap/common/dialogs/GameEndScreen.svelte';
 
-	// Poll queue size every second
-	let queueSize = $state(0);
+	// Component view maps
+	const MobileView = {
+		Header: UnifiedGameHeader,
+		PlayerSetup: PlayerSetup,
+		RoundResultModal: RoundResultModal,
+		GameEndScreen: GameEndScreen
+	};
+	const TabletView = { ...MobileView };
+	const DesktopView = { ...MobileView };
 
-	const queueSizeInterval = useInterval(1000, {
-		callback: async () => {
-			try {
-				const size = await getQueueSize();
-				queueSize = size;
-			} catch (error) {
-				console.error('[Game] Error fetching queue size:', error);
-			}
-		}
+	// Viewport detection
+	const viewportDetector = new ViewportSizeDetector();
+	const viewportSize = $derived(viewportDetector.current);
+	const ActiveView = $derived(
+		viewportSize === 'mobile' ? MobileView : viewportSize === 'tablet' ? TabletView : DesktopView
+	);
+
+	// Define dynamic styles for common components
+	const reelStyles = $derived(
+		viewportSize === 'mobile'
+			? '--timeline-card-width: 140px; --timeline-gap-width: 100px; --timeline-card-padding: 0.75rem;'
+			: viewportSize === 'tablet'
+				? '--timeline-card-width: 160px; --timeline-gap-width: 110px; --timeline-card-padding: 0.875rem;'
+				: '--timeline-card-width: 180px; --timeline-gap-width: 120px; --timeline-card-padding: 1rem;'
+	);
+	const needleStyles = $derived(
+		viewportSize === 'mobile'
+			? '--needle-height: 60px; --needle-width: 4px; --needle-indicator-height: 40px; --needle-button-top: -60px;'
+			: viewportSize === 'tablet'
+				? '--needle-height: 70px; --needle-width: 4px; --needle-indicator-height: 45px; --needle-button-top: -65px;'
+				: '--needle-height: 80px; --needle-width: 5px; --needle-indicator-height: 50px; --needle-button-top: -70px;'
+	);
+	const stageStyles = $derived(
+		viewportSize === 'mobile'
+			? '--stage-gap: 1.5rem; --stage-padding: 1rem; --vinyl-size: 160px; --vinyl-border-width: 8px; --vinyl-center-size: 30px; --track-title-size: 1.5rem; --track-artist-size: 1.125rem; --track-placeholder-size: 1.25rem; --track-year-size: 1rem;'
+			: viewportSize === 'tablet'
+				? '--stage-gap: 1.75rem; --stage-padding: 1.5rem; --vinyl-size: 180px; --vinyl-border-width: 8px; --vinyl-center-size: 35px; --track-title-size: 1.625rem; --track-artist-size: 1.25rem; --track-placeholder-size: 1.25rem; --track-year-size: 1rem;'
+				: '--stage-gap: 2rem; --stage-padding: 2rem; --vinyl-size: 200px; --vinyl-border-width: 10px; --vinyl-center-size: 40px; --track-title-size: 1.875rem; --track-artist-size: 1.375rem; --track-placeholder-size: 1.5rem; --track-year-size: 1.125rem;'
+	);
+
+	// Create page state
+	const pageState = new GamePageState();
+
+	onMount(() => {
+		pageState.init($page);
 	});
 
-	// Initialize tracks from page state (only once)
-	$effect(() => {
-		const pageState = $page.state as { tracks?: Track[] };
-		if (pageState?.tracks && !hasInitialized) {
-			hasInitialized = true;
-			tracks = pageState.tracks;
-			// Create promises sequentially, starting from top
-			const promises = new Map<number, Promise<string | undefined>>();
-			const dates = new Map<number, string | undefined>();
+	// Derived values from game engine
+	const gameStatus = $derived(pageState.gameEngine?.gameStatus ?? 'setup');
+	const currentPlayer = $derived(pageState.gameEngine?.currentPlayer);
+	const winner = $derived(pageState.gameEngine?.winner);
+	const totalTurns = $derived(pageState.gameEngine?.totalTurns ?? 0);
+	const tracksPlaced = $derived(pageState.gameEngine?.tracksPlaced ?? 0);
+	const tracksRemaining = $derived(pageState.gameEngine?.tracksRemaining ?? 0);
+	const roundResult = $derived(pageState.gameEngine?.roundResult ?? null);
+	const currentTrack = $derived(pageState.gameEngine?.currentTrack ?? null);
+	const players = $derived(pageState.gameEngine?.players ?? []);
+	const currentPlayerIndex = $derived(pageState.gameEngine?.currentPlayerIndex ?? 0);
+	const turnNumber = $derived(pageState.gameEngine?.turnNumber ?? 1);
 
-			// Batch check database cache first
-			async function initializeTracks() {
-				// Prepare tracks for batch check (only those without dates and with artists)
-				const tracksToCheck = pageState
-					.tracks!.map((track, index) => ({ index, track }))
-					.filter(({ track }) => !track.firstReleaseDate && track.artists.length > 0);
-
-				// Initialize cachedDates object
-				let cachedDates: Record<string, string | null> = {};
-
-				if (tracksToCheck.length > 0) {
-					// Batch check database cache
-					const batchCheckTracks = tracksToCheck.map(({ track }) => ({
-						trackName: track.name,
-						artistName: track.artists[0]
-					}));
-
-					try {
-						cachedDates = await getCachedReleaseDatesBatchQuery({ tracks: batchCheckTracks });
-
-						// Update tracks with cached dates immediately
-						untrack(() => {
-							for (const { index, track } of tracksToCheck) {
-								const key = `${track.name}|${track.artists[0]}`;
-								const cachedDate = cachedDates[key];
-
-								if (cachedDate !== undefined && cachedDate !== null) {
-									// Found in cache, update track immediately
-									const date = cachedDate;
-									dates.set(index, date);
-									tracks = tracks.map((t, idx) =>
-										idx === index ? { ...t, firstReleaseDate: date } : t
-									);
-								}
-							}
-							releaseDates = new Map(dates);
-						});
-					} catch (error) {
-						console.error('[Game] Error in batch cache check:', error);
-					}
-				}
-
-				// Store tracks that already have dates
-				pageState.tracks!.forEach((track, index) => {
-					if (track.firstReleaseDate) {
-						dates.set(index, track.firstReleaseDate);
-					}
-				});
-
-				// Now only queue tracks that weren't found in cache and don't have dates
-				const tracksToFetch: Array<{ index: number; track: Track }> = [];
-				for (const { index, track } of tracksToCheck) {
-					const key = `${track.name}|${track.artists[0]}`;
-					const cachedDate = cachedDates[key];
-
-					// Only queue if not found in cache (null or undefined)
-					if (cachedDate === null || cachedDate === undefined) {
-						tracksToFetch.push({ index, track });
-					}
-				}
-
-				// Queue all items at once, then process them sequentially via the queue
-				// This allows the queue size to accurately reflect pending items
-				for (const { index, track } of tracksToFetch) {
-					const artistName = track.artists[0];
-					const promise = fetchFirstReleaseDate({ trackName: track.name, artistName }).then(
-						(date) => {
-							// Use untrack to prevent reactivity from triggering effects
-							untrack(() => {
-								// Store the date in the map
-								dates.set(index, date);
-								releaseDates = new Map(dates);
-								// Update tracks array
-								if (date) {
-									tracks = tracks.map((t, idx) =>
-										idx === index ? { ...t, firstReleaseDate: date } : t
-									);
-								}
-							});
-							return date;
-						}
-					);
-					promises.set(index, promise);
-				}
-
-				// Update promises map once all are queued
-				releaseDatePromises = new Map(promises);
-				releaseDates = dates;
-			}
-
-			// Start initialization
-			initializeTracks();
-		}
-	});
-
-	// Helper function to get release date promise for a track
-	function getReleaseDatePromise(trackIndex: number): Promise<string | undefined> | null {
-		return releaseDatePromises.get(trackIndex) || null;
-	}
-
-	function playTrack(track: Track) {
-		console.log('[playTrack] Called with track:', track.name, 'by', track.artists.join(', '));
-		if (!track.audioUrl) {
-			console.warn('[playTrack] Track has no audioUrl, cannot play');
-			return;
-		}
-
-		if (audioElement) {
-			console.log('[playTrack] Stopping current audio element');
-			audioElement.pause();
-		}
-
-		console.log('[playTrack] Creating new Audio element with URL:', track.audioUrl);
-		audioElement = new Audio(track.audioUrl);
-		audioElement
-			.play()
-			.then(() => {
-				console.log('[playTrack] Audio playback started successfully');
-			})
-			.catch((error) => {
-				console.error('[playTrack] Error playing audio:', error);
-			});
-	}
-
-	function stopTrack() {
-		console.log('[stopTrack] Called');
-		if (audioElement) {
-			console.log('[stopTrack] Pausing and clearing audio element');
-			audioElement.pause();
-			audioElement = null;
-		} else {
-			console.log('[stopTrack] No audio element to stop');
-		}
-	}
+	const timelineItems = $derived(
+		pageState.gameEngine
+			? pageState.gameEngine.buildTimelineItems(currentPlayer)
+			: [{ type: 'gap' as const, gapIndex: 0 }]
+	);
 </script>
 
-<PageHeader title="Game">
-	{#snippet rightActions()}
-		<Badge variant="default">
-			Server Queue: {queueSize}
-		</Badge>
-	{/snippet}
-</PageHeader>
-
-{#if tracks.length === 0}
-	<Card.Root class="no-tracks">
-		<Card.Content>
-			<p>No tracks available. Please go back and load a playlist.</p>
-			<Button variant="link" href="/playlist">Back to Playlist Input</Button>
-		</Card.Content>
-	</Card.Root>
-{/if}
-
-{#if tracks.length > 0}
-	<div class="game-content">
-		<Card.Root class="track-info">
+{#if pageState.tracks.length === 0}
+	<div class="no-tracks-container">
+		<Card.Root class="no-tracks">
 			<Card.Header>
-				<Card.Title>Track {currentTrackIndex + 1} of {tracks.length}</Card.Title>
+				<Card.Title>No Tracks Loaded</Card.Title>
 			</Card.Header>
 			<Card.Content>
-				{#if tracks[currentTrackIndex]}
-					{@const track = tracks[currentTrackIndex]}
-					<div class="controls">
-						<Button onclick={() => playTrack(track)}>Play</Button>
-						<Button variant="outline" onclick={stopTrack}>Stop</Button>
-					</div>
-					<div class="track-details">
-						<p>
-							<strong>Status:</strong>
-							<Badge variant={track.status === 'found' ? 'default' : 'destructive'}>
-								{track.status}
-							</Badge>
-						</p>
-						<p>
-							<strong>Audio:</strong>
-							<Badge variant={track.audioUrl ? 'default' : 'secondary'}>
-								{track.audioUrl ? 'Available' : 'Missing'}
-							</Badge>
-						</p>
-						<p>
-							<strong>Release Date:</strong>
-							{#if track.firstReleaseDate}
-								<Badge variant="default">{track.firstReleaseDate}</Badge>
-							{:else if getReleaseDatePromise(currentTrackIndex)}
-								{#await getReleaseDatePromise(currentTrackIndex)}
-									<span class="loading-date">
-										<Spinner />
-										Loading...
-									</span>
-								{:then date}
-									{#if date}
-										<Badge variant="default">{date}</Badge>
-									{:else}
-										<Badge variant="destructive">Not found</Badge>
-									{/if}
-								{:catch}
-									<Badge variant="destructive">Error</Badge>
-								{/await}
-							{:else}
-								<Badge variant="destructive">Not found</Badge>
-							{/if}
-						</p>
-					</div>
-				{/if}
-			</Card.Content>
-		</Card.Root>
-
-		<Card.Root class="track-list">
-			<Card.Header>
-				<Card.Title>All Tracks</Card.Title>
-			</Card.Header>
-			<Card.Content>
-				<Table.Root>
-					<Table.Body>
-						{#each tracks as track, index}
-							<Table.Row
-								data-state={index === currentTrackIndex ? 'selected' : undefined}
-								class="selected-row"
-								onclick={() => (currentTrackIndex = index)}
-							>
-								<Table.Cell class="track-name-cell">
-									{track.name} - {track.artists.join(', ')}
-								</Table.Cell>
-								<Table.Cell class="status-cell">
-									{#if track.status === 'found'}
-										<Badge variant="default">✓</Badge>
-									{:else}
-										<Badge variant="destructive">✗</Badge>
-									{/if}
-								</Table.Cell>
-								<Table.Cell class="date-cell">
-									{#if !track.firstReleaseDate && getReleaseDatePromise(index)}
-										{#await getReleaseDatePromise(index)}
-											<Spinner />
-										{:then date}
-											{#if date}
-												<Badge variant="default">{date}</Badge>
-											{:else}
-												<Badge variant="destructive">✗</Badge>
-											{/if}
-										{:catch error}
-											<Badge variant="destructive">✗</Badge>
-										{/await}
-									{:else if track.firstReleaseDate}
-										<Badge variant="default">{track.firstReleaseDate}</Badge>
-									{:else}
-										<Badge variant="destructive">✗</Badge>
-									{/if}
-								</Table.Cell>
-							</Table.Row>
-						{/each}
-					</Table.Body>
-				</Table.Root>
+				<p>Could not find any playable tracks. Please go back and load a different playlist.</p>
+				<Button variant="link" href="/playlist">Back to Playlist Input</Button>
 			</Card.Content>
 		</Card.Root>
 	</div>
+{:else if gameStatus === 'setup'}
+	<div class="setup-container">
+		<ActiveView.PlayerSetup
+			playerNames={pageState.playerNames}
+			playableTracksCount={pageState.playableTracks.length}
+			onStartGame={() => pageState.initializeGame()}
+		/>
+	</div>
+{:else if gameStatus === 'gameEnd'}
+	<div class="game-end-container">
+		<ActiveView.GameEndScreen {players} {winner} onRestart={() => pageState.restartGame()} />
+	</div>
+{:else}
+	<div
+		id="app-shell"
+		class:mobile={viewportSize === 'mobile'}
+		class:tablet={viewportSize === 'tablet'}
+		class:desktop={viewportSize === 'desktop'}
+	>
+		<audio
+			bind:this={pageState.audioElement}
+			bind:paused={pageState.isPaused}
+			src={currentTrack?.audioUrl}
+			onended={() => {
+				pageState.isPlaying = false;
+				pageState.isPaused = true;
+			}}
+		></audio>
+
+		{#if currentPlayer !== undefined}
+			<div class="game-header-wrapper">
+				<ActiveView.Header
+					{currentPlayer}
+					{players}
+					{currentPlayerIndex}
+					{turnNumber}
+					{totalTurns}
+					{currentTrack}
+					isPlaying={pageState.isPlaying}
+					onPlay={() => pageState.playTrack()}
+					onStop={() => pageState.stopTrack()}
+				/>
+			</div>
+		{/if}
+
+		<div style={stageStyles}>
+			<Stage
+				{currentTrack}
+				isPlaying={pageState.isPlaying}
+				showSongName={pageState.showSongName}
+				showArtistName={pageState.showArtistName}
+				showReleaseDates={pageState.showReleaseDates}
+				blurred={pageState.blurred}
+				onRevealClick={() => pageState.handleRevealClick()}
+			/>
+		</div>
+
+		<div class="timeline-needle-zone">
+			<div style={reelStyles}>
+				<TimelineReel
+					bind:timelineReel={pageState.timelineReel}
+					{timelineItems}
+					canScrollLeft={pageState.canScrollLeft}
+					canScrollRight={pageState.canScrollRight}
+					showSongName={pageState.showSongName}
+					showArtistName={pageState.showArtistName}
+					showReleaseDates={pageState.showReleaseDates}
+					onScrollLeft={() => pageState.scrollTimelineLeft()}
+					onScrollRight={() => pageState.scrollTimelineRight()}
+				/>
+			</div>
+
+			<div
+				class="timeline-needle-overlay"
+				bind:this={pageState.needleOverlayEl}
+				style={`--needle-horizontal-offset: ${pageState.needleHorizontalOffset}px; ${needleStyles}`}
+			>
+				<Needle
+					showDropButton={pageState.showDropButton}
+					activeGapIndex={pageState.activeGapIndex}
+					activeCardIndex={pageState.activeCardIndex}
+					{gameStatus}
+					onPlaceFromGap={(e) => pageState.placeTrackFromGap(e.detail)}
+					onPlaceSameYear={(e) => pageState.placeTrackSameYear(e.detail)}
+				/>
+			</div>
+		</div>
+	</div>
+
+	{#if gameStatus === 'roundEnd' && roundResult && currentPlayer}
+		<ActiveView.RoundResultModal
+			{roundResult}
+			{currentPlayer}
+			{currentTrack}
+			exactYearBonusAwarded={pageState.exactYearBonusAwarded}
+			onNextTurn={() => pageState.nextTurn()}
+		/>
+	{/if}
 {/if}
 
 <style>
-	.game-content {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 2rem;
-	}
-
-	.controls {
-		display: flex;
-		gap: 1rem;
-		margin: 1rem 0;
-	}
-
-	.track-details {
-		display: flex;
-		flex-direction: column;
-		gap: 0.75rem;
-	}
-
-	.track-details p {
-		margin: 0;
-		color: var(--foreground);
-	}
-
-	.track-list :global(table) {
-		width: 100%;
-	}
-
-	.track-list :global(tr.selected-row) {
-		cursor: pointer;
-		position: relative;
-	}
-
-	.track-list :global(tr.selected-row[data-state='selected']) {
-		background-color: var(--accent);
-		border-left: 3px solid var(--primary);
-	}
-
-	.track-list :global(tr.selected-row[data-state='selected']:hover) {
-		background-color: var(--accent);
-		opacity: 0.95;
-	}
-
-	.track-list :global(tr.selected-row:hover:not([data-state='selected'])) {
-		background-color: color-mix(in oklch, var(--muted) 50%, transparent);
-	}
-
-	.track-name-cell {
-		width: auto;
-		min-width: 0;
-	}
-
-	.status-cell {
-		width: 80px;
+	:global(.no-tracks) {
+		max-width: 600px;
+		margin: 2rem auto;
 		text-align: center;
 	}
 
-	.date-cell {
-		width: 120px;
-		text-align: right;
+	.no-tracks-container,
+	.setup-container,
+	.game-end-container {
+		min-height: 100vh;
+		padding: 2rem;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		position: relative;
+		z-index: 1;
 	}
 
-	.loading-date {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.5rem;
-		color: var(--muted-foreground);
+	:global(body) {
+		overflow: hidden;
+	}
+
+	:global(.content-layer) {
+		padding: 0 !important;
+		overflow: hidden !important;
+	}
+
+	#app-shell {
+		display: flex;
+		flex-direction: column;
+		height: 100vh;
+		width: 100vw;
+		margin: 0 auto;
+		overflow: hidden;
+		background: var(--background);
+		position: fixed;
+		top: 0;
+		left: 50%;
+		transform: translateX(-50%);
+		z-index: 1000;
+	}
+
+	#app-shell.mobile {
+		max-width: 430px;
+	}
+
+	#app-shell.tablet {
+		max-width: 768px;
+	}
+
+	#app-shell.desktop {
+		max-width: 1200px;
+	}
+
+	.game-header-wrapper {
+		position: relative;
+		z-index: 4;
+		flex-shrink: 0;
+		padding: 0.5rem 1rem;
+		background: var(--background);
+	}
+
+	.game-header-wrapper :global(.unified-header) {
+		margin-bottom: 0;
+	}
+
+	.timeline-needle-zone {
+		--needle-overlay-height: 120px;
+		flex: 1;
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		width: 100%;
+		padding-top: var(--needle-overlay-height);
+	}
+
+	.timeline-needle-zone > :global(.zone-c-timeline-wrapper) {
+		flex: 1;
+	}
+
+	.timeline-needle-overlay {
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		height: var(--needle-overlay-height);
+		pointer-events: none;
+		display: flex;
+		align-items: flex-end;
+		justify-content: center;
+	}
+
+	.timeline-needle-overlay :global(.zone-b-needle) {
+		pointer-events: none;
+	}
+
+	.timeline-needle-overlay :global(.drop-button-wrapper) {
+		pointer-events: auto;
+	}
+
+	@media (max-width: 430px) {
+		#app-shell {
+			max-width: 100vw;
+		}
 	}
 </style>

@@ -233,7 +233,10 @@ export async function processPlaylist(
 			}
 		}
 
-		const trackResult = {
+		const trackId = spotifyTrack.uri ? spotifyTrack.uri.split(':').pop() || '' : '';
+
+		const trackResult: Track = {
+			id: trackId,
 			name: trackName,
 			artists,
 			audioUrl,

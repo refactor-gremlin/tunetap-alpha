@@ -19,6 +19,19 @@
 		exactYearBonusAwarded?: number | null;
 	} = $props();
 
+	let isModalOpen = $state(true);
+
+	$effect(() => {
+		isModalOpen = true;
+	});
+
+	function handleOpenChange(isOpen: boolean) {
+		if (!isOpen) {
+			onNextTurn();
+		}
+		isModalOpen = isOpen;
+	}
+
 	const trackYear = $derived(currentTrack ? getReleaseYear(currentTrack) : null);
 	const isCorrect = $derived(
 		exactYearBonusAwarded !== null ? exactYearBonusAwarded > 0 : (result?.correct ?? false)
@@ -26,7 +39,7 @@
 </script>
 
 {#if result}
-	<Dialog.Root open={true}>
+	<Dialog.Root bind:open={isModalOpen} onOpenChange={handleOpenChange}>
 		<Dialog.Content class="round-result-modal">
 			<Dialog.Header class="fade-in-title">
 				<Dialog.Title class="result-title {isCorrect ? 'correct' : 'incorrect'}">
