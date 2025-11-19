@@ -9,5 +9,9 @@ export default defineConfig({
 		watch: {
 			ignored: ['**/prisma/**']
 		}
+	},
+	ssr: {
+		noExternal: [],
+		external: ['@prisma/client', '.prisma']
 	}
 });
