@@ -109,6 +109,8 @@
 
 	// Needle Drop Layout State
 	let timelineReel: HTMLDivElement | null = $state(null);
+	let needleOverlayEl: HTMLDivElement | null = $state(null);
+	let needleHorizontalOffset = $state(0);
 	let activeGapIndex = $state<number | null>(null);
 	let activeCardIndex = $state<number | null>(null);
 	let showDropButton = $state(false);
@@ -334,6 +336,31 @@
 				}
 			});
 		}
+	});
+
+	// Keep the needle centered over the actual reel viewport
+	$effect(() => {
+		if (typeof window === 'undefined' || typeof ResizeObserver === 'undefined') return;
+		if (!timelineReel || !needleOverlayEl) return;
+
+		const updateNeedleOffset = () => {
+			const reelRect = timelineReel?.getBoundingClientRect();
+			const overlayRect = needleOverlayEl?.getBoundingClientRect();
+			if (!reelRect || !overlayRect) return;
+			needleHorizontalOffset =
+				reelRect.left + reelRect.width / 2 - (overlayRect.left + overlayRect.width / 2);
+		};
+
+		updateNeedleOffset();
+		const resizeObserver = new ResizeObserver(() => updateNeedleOffset());
+		resizeObserver.observe(timelineReel);
+		resizeObserver.observe(needleOverlayEl);
+		window.addEventListener('resize', updateNeedleOffset);
+
+		return () => {
+			resizeObserver.disconnect();
+			window.removeEventListener('resize', updateNeedleOffset);
+		};
 	});
 
 	// Filter tracks that have release dates and audio
@@ -621,28 +648,36 @@
 			onRevealClick={handleRevealClick}
 		/>
 
-		<!-- Zone B: The Needle (Middle Anchor) -->
-		<ActiveView.Needle
-			{showDropButton}
-			{activeGapIndex}
-			{activeCardIndex}
-			{gameStatus}
-			onPlaceFromGap={placeTrackFromGap}
-			onPlaceSameYear={placeTrackSameYear}
-		/>
+			<div class="timeline-needle-zone">
+			<!-- Zone C: The Timeline Reel (Bottom Flex) -->
+			<ActiveView.Reel
+				bind:timelineReel
+				{timelineItems}
+				{canScrollLeft}
+				{canScrollRight}
+				{showSongName}
+				{showArtistName}
+				{showReleaseDates}
+				onScrollLeft={scrollTimelineLeft}
+				onScrollRight={scrollTimelineRight}
+			/>
 
-		<!-- Zone C: The Timeline Reel (Bottom Flex) -->
-		<ActiveView.Reel
-			bind:timelineReel
-			{timelineItems}
-			{canScrollLeft}
-			{canScrollRight}
-			{showSongName}
-			{showArtistName}
-			{showReleaseDates}
-			onScrollLeft={scrollTimelineLeft}
-			onScrollRight={scrollTimelineRight}
-		/>
+			<div
+				class="timeline-needle-overlay"
+				bind:this={needleOverlayEl}
+				style={`--needle-horizontal-offset: ${needleHorizontalOffset}px;`}
+			>
+				<!-- Zone B: The Needle (Middle Anchor) -->
+				<ActiveView.Needle
+					{showDropButton}
+					{activeGapIndex}
+					{activeCardIndex}
+					{gameStatus}
+					onPlaceFromGap={placeTrackFromGap}
+					onPlaceSameYear={placeTrackSameYear}
+				/>
+			</div>
+		</div>
 	</div>
 
 	<!-- Round result modal (Z-index 5) -->
@@ -723,6 +758,40 @@
 
 	.game-header-wrapper :global(.unified-header) {
 		margin-bottom: 0;
+	}
+
+	.timeline-needle-zone {
+		--needle-overlay-height: 120px;
+		flex: 1;
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		width: 100%;
+		padding-top: var(--needle-overlay-height);
+	}
+
+	.timeline-needle-zone > :global(.zone-c-timeline-wrapper) {
+		flex: 1;
+	}
+
+	.timeline-needle-overlay {
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		height: var(--needle-overlay-height);
+		pointer-events: none;
+		display: flex;
+		align-items: flex-end;
+		justify-content: center;
+	}
+
+	.timeline-needle-overlay :global(.zone-b-needle) {
+		pointer-events: none;
+	}
+
+	.timeline-needle-overlay :global(.drop-button-wrapper) {
+		pointer-events: auto;
 	}
 
 
