@@ -3,25 +3,83 @@
 	import type { Player, PlacementResult, GameStatus, PlacementType } from '$lib/types/tunetap.js';
 	import { page } from '$app/stores';
 	import { fetchFirstReleaseDate, getQueueSize, getCachedReleaseDatesBatchQuery } from './musicbrainz.remote';
-	import { untrack, onMount } from 'svelte';
-	import { useInterval } from 'runed';
+	import { untrack, onMount, tick } from 'svelte';
+	import { useInterval, useEventListener } from 'runed';
 	import { Button } from '$lib/components/shadncn-ui/button/index.js';
 	import * as Card from '$lib/components/shadncn-ui/card/index.js';
 	import PageHeader from '$lib/components/custom/PageHeader.svelte';
 	import { goto } from '$app/navigation';
 	import { getReleaseYear } from '$lib/utils/timeline.js';
 	import { Switch } from '$lib/components/shadncn-ui/switch/index.js';
-	import * as Tabs from '$lib/components/shadncn-ui/tabs/index.js';
+	import { ViewportSizeDetector } from '$lib/hooks/viewport-size.svelte.js';
+	import { TuneTapGame } from '$lib/game/TuneTapGame.svelte.js';
 
-	// Import components
-	import UnifiedGameHeader from '$lib/components/custom/tunetap/UnifiedGameHeader.svelte';
-	import CurrentTrackCard from '$lib/components/custom/tunetap/CurrentTrackCard.svelte';
-	import AllPlayersTimelines from '$lib/components/custom/tunetap/AllPlayersTimelines.svelte';
-	import PlacementControls from '$lib/components/custom/tunetap/PlacementControls.svelte';
-	import PlacementDialog from '$lib/components/custom/tunetap/PlacementDialog.svelte';
-	import RoundResultModal from '$lib/components/custom/tunetap/RoundResultModal.svelte';
-	import GameEndScreen from '$lib/components/custom/tunetap/GameEndScreen.svelte';
-	import PlayerSetup from '$lib/components/custom/tunetap/PlayerSetup.svelte';
+	// Import components (mobile)
+	import UnifiedGameHeaderMobile from '$lib/components/custom/tunetap/mobile/header/UnifiedGameHeader.svelte';
+	import RoundResultModalMobile from '$lib/components/custom/tunetap/mobile/dialogs/RoundResultModal.svelte';
+	import GameEndScreenMobile from '$lib/components/custom/tunetap/mobile/dialogs/GameEndScreen.svelte';
+	import PlayerSetupMobile from '$lib/components/custom/tunetap/mobile/controls/PlayerSetup.svelte';
+	import StageMobile from '$lib/components/custom/tunetap/mobile/stage/Stage.svelte';
+	import NeedleMobile from '$lib/components/custom/tunetap/mobile/needle/Needle.svelte';
+	import TimelineReelMobile from '$lib/components/custom/tunetap/mobile/timeline/TimelineReel.svelte';
+
+	// Import components (desktop)
+	import UnifiedGameHeaderDesktop from '$lib/components/custom/tunetap/desktop/header/UnifiedGameHeader.svelte';
+	import RoundResultModalDesktop from '$lib/components/custom/tunetap/desktop/dialogs/RoundResultModal.svelte';
+	import GameEndScreenDesktop from '$lib/components/custom/tunetap/desktop/dialogs/GameEndScreen.svelte';
+	import PlayerSetupDesktop from '$lib/components/custom/tunetap/desktop/controls/PlayerSetup.svelte';
+	import StageDesktop from '$lib/components/custom/tunetap/desktop/stage/Stage.svelte';
+	import NeedleDesktop from '$lib/components/custom/tunetap/desktop/needle/Needle.svelte';
+	import TimelineReelDesktop from '$lib/components/custom/tunetap/desktop/timeline/TimelineReel.svelte';
+
+	// Import components (tablet)
+	import UnifiedGameHeaderTablet from '$lib/components/custom/tunetap/tablet/header/UnifiedGameHeader.svelte';
+	import RoundResultModalTablet from '$lib/components/custom/tunetap/tablet/dialogs/RoundResultModal.svelte';
+	import GameEndScreenTablet from '$lib/components/custom/tunetap/tablet/dialogs/GameEndScreen.svelte';
+	import PlayerSetupTablet from '$lib/components/custom/tunetap/tablet/controls/PlayerSetup.svelte';
+	import StageTablet from '$lib/components/custom/tunetap/tablet/stage/Stage.svelte';
+	import NeedleTablet from '$lib/components/custom/tunetap/tablet/needle/Needle.svelte';
+	import TimelineReelTablet from '$lib/components/custom/tunetap/tablet/timeline/TimelineReel.svelte';
+
+	// Component view maps
+	const MobileView = {
+		Header: UnifiedGameHeaderMobile,
+		Stage: StageMobile,
+		Needle: NeedleMobile,
+		Reel: TimelineReelMobile,
+		PlayerSetup: PlayerSetupMobile,
+		RoundResultModal: RoundResultModalMobile,
+		GameEndScreen: GameEndScreenMobile
+	};
+
+	const TabletView = {
+		Header: UnifiedGameHeaderTablet,
+		Stage: StageTablet,
+		Needle: NeedleTablet,
+		Reel: TimelineReelTablet,
+		PlayerSetup: PlayerSetupTablet,
+		RoundResultModal: RoundResultModalTablet,
+		GameEndScreen: GameEndScreenTablet
+	};
+
+	const DesktopView = {
+		Header: UnifiedGameHeaderDesktop,
+		Stage: StageDesktop,
+		Needle: NeedleDesktop,
+		Reel: TimelineReelDesktop,
+		PlayerSetup: PlayerSetupDesktop,
+		RoundResultModal: RoundResultModalDesktop,
+		GameEndScreen: GameEndScreenDesktop
+	};
+
+	// Viewport detection
+	const viewportDetector = new ViewportSizeDetector();
+	const viewportSize = $derived(viewportDetector.current);
+
+	// Determine active view based on viewport
+	const ActiveView = $derived(
+		viewportSize === 'mobile' ? MobileView : viewportSize === 'tablet' ? TabletView : DesktopView
+	);
 
 	// Get tracks from navigation state
 	let tracks = $state<Track[]>([]);
@@ -31,31 +89,35 @@
 	let releaseDates = $state<Map<number, string | undefined>>(new Map());
 	let queueSize = $state(0);
 
-	// Game state
-	let players = $state<Player[]>([]);
-	let currentPlayerIndex = $state(0);
-	let currentTrack = $state<Track | null>(null);
-	let availableTracks = $state<Track[]>([]);
-	let gameStatus = $state<GameStatus>('setup');
-	let roundResult = $state<PlacementResult | null>(null);
+	// Game engine
+	let gameEngine = $state<TuneTapGame | null>(null);
+
+	// UI state
 	let showReleaseDates = $state(false);
 	let selectedPlacementType = $state<PlacementType | null>(null);
 	let selectedTrackIndex = $state<number | null>(null);
 	let selectedYear = $state<number>(2000);
 	let playerNames = $state<string[]>([]);
-	let turnNumber = $state(1);
-	let showPlacementDialog = $state(false);
-	let selectedReferenceTrackIndex = $state<number | null>(null);
-	let dialogPlacementType = $state<PlacementType | null>(null);
 	let showSongName = $state(false);
 	let showArtistName = $state(false);
-	let activeView = $state<'track' | 'timeline'>('track');
-	let exactYearGuessEnabled = $state(false);
 	let exactYearBonusAwarded = $state<number | null>(null);
 
 	// Audio
 	let audioElement: HTMLAudioElement | null = $state(null);
 	let isPlaying = $state(false);
+	let isPaused = $state(true);
+
+	// Needle Drop Layout State
+	let timelineReel: HTMLDivElement | null = $state(null);
+	let activeGapIndex = $state<number | null>(null);
+	let activeCardIndex = $state<number | null>(null);
+	let showDropButton = $state(false);
+	let blurred = $state(true);
+	let previousActiveElement: HTMLElement | null = $state(null);
+	
+	// Timeline Navigation State
+	let canScrollLeft = $state(false);
+	let canScrollRight = $state(false);
 
 	const queueSizeInterval = useInterval(1000, {
 		callback: async () => {
@@ -84,7 +146,6 @@
 			
 			if (tracksData) {
 				loadedTracks = JSON.parse(tracksData) as Track[];
-				// Clear sessionStorage after reading
 				sessionStorage.removeItem('tunetap_tracks');
 			}
 			
@@ -141,85 +202,138 @@
 			playerCount = loadedPlayerCount;
 			playerNames = Array(playerCount).fill('').map((_, i) => `Player ${i + 1}`);
 
-				// Initialize release date fetching (same logic as game route)
-				const promises = new Map<number, Promise<string | undefined>>();
-				const dates = new Map<number, string | undefined>();
+			// Initialize release date fetching
+			const promises = new Map<number, Promise<string | undefined>>();
+			const dates = new Map<number, string | undefined>();
 
-				async function initializeTracks() {
-					const tracksToCheck = loadedTracks!
-						.map((track, index) => ({ index, track }))
-						.filter(({ track }) => !track.firstReleaseDate && track.artists.length > 0);
+			async function initializeTracks() {
+				const tracksToCheck = loadedTracks!
+					.map((track, index) => ({ index, track }))
+					.filter(({ track }) => !track.firstReleaseDate && track.artists.length > 0);
 
-					let cachedDates: Record<string, string | null> = {};
+				let cachedDates: Record<string, string | null> = {};
 
-					if (tracksToCheck.length > 0) {
-						const batchCheckTracks = tracksToCheck.map(({ track }) => ({
-							trackName: track.name,
-							artistName: track.artists[0]
-						}));
+				if (tracksToCheck.length > 0) {
+					const batchCheckTracks = tracksToCheck.map(({ track }) => ({
+						trackName: track.name,
+						artistName: track.artists[0]
+					}));
 
-						try {
-							cachedDates = await getCachedReleaseDatesBatchQuery({ tracks: batchCheckTracks });
+					try {
+						cachedDates = await getCachedReleaseDatesBatchQuery({ tracks: batchCheckTracks });
 
-							untrack(() => {
-								for (const { index, track } of tracksToCheck) {
-									const key = `${track.name}|${track.artists[0]}`;
-									const cachedDate = cachedDates[key];
+						untrack(() => {
+							for (const { index, track } of tracksToCheck) {
+								const key = `${track.name}|${track.artists[0]}`;
+								const cachedDate = cachedDates[key];
 
-									if (cachedDate !== undefined && cachedDate !== null) {
-										const date = cachedDate;
-										dates.set(index, date);
-										tracks = tracks.map((t, idx) =>
-											idx === index ? { ...t, firstReleaseDate: date } : t
-										);
-									}
-								}
-								releaseDates = new Map(dates);
-							});
-						} catch (error) {
-							console.error('[Game] Error in batch cache check:', error);
-						}
-					}
-
-					loadedTracks!.forEach((track, index) => {
-						if (track.firstReleaseDate) {
-							dates.set(index, track.firstReleaseDate);
-						}
-					});
-
-					const tracksToFetch: Array<{ index: number; track: Track }> = [];
-					for (const { index, track } of tracksToCheck) {
-						const key = `${track.name}|${track.artists[0]}`;
-						const cachedDate = cachedDates[key];
-
-						if (cachedDate === null || cachedDate === undefined) {
-							tracksToFetch.push({ index, track });
-						}
-					}
-
-					for (const { index, track } of tracksToFetch) {
-						const artistName = track.artists[0];
-						const promise = fetchFirstReleaseDate({ trackName: track.name, artistName }).then((date) => {
-							untrack(() => {
-								dates.set(index, date);
-								releaseDates = new Map(dates);
-								if (date) {
+								if (cachedDate !== undefined && cachedDate !== null) {
+									const date = cachedDate;
+									dates.set(index, date);
 									tracks = tracks.map((t, idx) =>
 										idx === index ? { ...t, firstReleaseDate: date } : t
 									);
 								}
-							});
-							return date;
+							}
+							releaseDates = new Map(dates);
 						});
-						promises.set(index, promise);
+					} catch (error) {
+						console.error('[Game] Error in batch cache check:', error);
 					}
-
-					releaseDatePromises = new Map(promises);
-					releaseDates = dates;
 				}
 
-				initializeTracks();
+				loadedTracks!.forEach((track, index) => {
+					if (track.firstReleaseDate) {
+						dates.set(index, track.firstReleaseDate);
+					}
+				});
+
+				const tracksToFetch: Array<{ index: number; track: Track }> = [];
+				for (const { index, track } of tracksToCheck) {
+					const key = `${track.name}|${track.artists[0]}`;
+					const cachedDate = cachedDates[key];
+
+					if (cachedDate === null || cachedDate === undefined) {
+						tracksToFetch.push({ index, track });
+					}
+				}
+
+				for (const { index, track } of tracksToFetch) {
+					const artistName = track.artists[0];
+					const promise = fetchFirstReleaseDate({ trackName: track.name, artistName }).then((date) => {
+						untrack(() => {
+							dates.set(index, date);
+							releaseDates = new Map(dates);
+							if (date) {
+								tracks = tracks.map((t, idx) =>
+									idx === index ? { ...t, firstReleaseDate: date } : t
+								);
+							}
+						});
+						return date;
+					});
+					promises.set(index, promise);
+				}
+
+				releaseDatePromises = new Map(promises);
+				releaseDates = dates;
 			}
+
+			initializeTracks();
+		}
+
+		// Initialize scroll state
+		updateScrollState();
+	});
+
+	// Keyboard navigation for timeline
+	useEventListener(
+		() => window,
+		'keydown',
+		(event: KeyboardEvent) => {
+			// Only handle arrow keys when game is playing
+			if (!gameEngine || gameEngine.gameStatus !== 'playing') return;
+			
+			// Don't handle if user is typing in an input
+			if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+				return;
+			}
+
+			if (event.key === 'ArrowLeft' && canScrollLeft) {
+				event.preventDefault();
+				scrollTimelineLeft();
+			} else if (event.key === 'ArrowRight' && canScrollRight) {
+				event.preventDefault();
+				scrollTimelineRight();
+			}
+		}
+	);
+
+	// Handle scroll event - updates scroll state and detects needle collision
+	function handleScroll() {
+		if (!timelineReel) return;
+		updateScrollState();
+		detectNeedleCollision();
+	}
+
+	// Update scroll state when timeline scrolls
+	useEventListener(
+		() => timelineReel,
+		'scroll',
+		handleScroll
+	);
+
+	// Update scroll state when timeline items change
+	$effect(() => {
+		if (timelineItems.length > 0 && timelineReel) {
+			tick().then(() => {
+				updateScrollState();
+				// Also detect needle collision when timeline items change
+				if (gameEngine?.gameStatus === 'playing') {
+					detectNeedleCollision();
+				}
+			});
+		}
 	});
 
 	// Filter tracks that have release dates and audio
@@ -227,243 +341,68 @@
 		tracks.filter((t) => t.firstReleaseDate && t.audioUrl && t.status === 'found')
 	);
 
-	// Helper function to place a track for a specific player (for auto-placement)
-	function placeTrackForPlayer(playerIndex: number, track: Track, placementType: PlacementType = 'before', referenceIndex: number | null = null, year?: number) {
-		const player = players[playerIndex];
-		const result = validatePlacement(playerIndex, track, placementType, referenceIndex, year);
-		
-		// Insert track at correct position
-		const insertIndex = result.correctPosition >= 0 ? result.correctPosition : player.timeline.length;
-		player.timeline.splice(insertIndex, 0, track);
-		
-		// Update score (always use timeline placement mode for auto-placement)
-		if (result.correct) {
-			player.score += 1;
-		} else {
-			player.score = 0;
-		}
-		
-		return result;
-	}
-
 	// Initialize game
 	function initializeGame() {
-		// Filter and shuffle tracks
-		const shuffled = [...playableTracks].sort(() => Math.random() - 0.5);
-		availableTracks = shuffled;
-
-		// Initialize players
-		players = playerNames.map((name) => ({
-			name,
-			score: 0,
-			timeline: []
-		}));
-
-		// Automatically place first track for all players
-		for (let i = 0; i < players.length; i++) {
-			if (availableTracks.length === 0) break;
-			
-			const track = availableTracks[0];
-			placeTrackForPlayer(i, track, 'before', null);
-			availableTracks = availableTracks.slice(1);
-		}
-
-		gameStatus = 'playing';
-		currentPlayerIndex = 0;
-		turnNumber = 1;
-		selectRandomTrack();
-	}
-
-	// Select random track for current turn
-	function selectRandomTrack() {
-		if (availableTracks.length === 0) {
-			// No more tracks, end game
-			endGame();
-			return;
-		}
-
-		const randomIndex = Math.floor(Math.random() * availableTracks.length);
-		currentTrack = availableTracks[randomIndex];
+		// Always create a fresh instance
+		gameEngine = new TuneTapGame();
+		gameEngine.initializeGame(playableTracks, playerNames);
+		
+		// Reset UI state
 		selectedPlacementType = null;
 		selectedTrackIndex = null;
-		roundResult = null;
 		showReleaseDates = false;
 		exactYearBonusAwarded = null;
+		blurred = true;
 		stopTrack();
-		activeView = 'track';
 	}
 
 	// Play audio
-	function playTrack() {
-		if (!currentTrack?.audioUrl) return;
-
-		if (audioElement) {
-			audioElement.pause();
-		}
-
-		audioElement = new Audio(currentTrack.audioUrl);
-		audioElement.play().then(() => {
+	async function playTrack() {
+		if (!audioElement) return;
+		// Optional: Load ensures the new src is ready if you just switched tracks
+		audioElement.load();
+		try {
+			await audioElement.play();
 			isPlaying = true;
-		}).catch((error) => {
+			isPaused = false;
+		} catch (error) {
 			console.error('[Game] Error playing audio:', error);
-		});
-
-		audioElement.addEventListener('ended', () => {
-			isPlaying = false;
-		});
+		}
 	}
 
 	function stopTrack() {
 		if (audioElement) {
-			audioElement.pause();
-			audioElement = null;
+			isPaused = true;
 			isPlaying = false;
 		}
 	}
 
-	// Validate placement
-	function validatePlacement(playerIndex: number, track: Track, placementType: PlacementType, referenceIndex: number | null, year?: number): PlacementResult {
-		const player = players[playerIndex];
-		const trackYear = getReleaseYear(track);
-		if (!trackYear) {
-			return { correct: false, correctPosition: -1 };
-		}
-
-		// Create timeline with new track inserted
-		const newTimeline = [...player.timeline];
-		let insertIndex = 0;
-
-		if (placementType === 'before') {
-			if (referenceIndex !== null) {
-				insertIndex = referenceIndex;
-			} else {
-				// Before timeline start - find correct position
-				insertIndex = newTimeline.findIndex((t) => {
-					const tYear = getReleaseYear(t);
-					return tYear !== null && tYear >= trackYear;
-				});
-				if (insertIndex === -1) insertIndex = newTimeline.length;
-			}
-		} else if (placementType === 'after') {
-			if (referenceIndex !== null) {
-				insertIndex = referenceIndex + 1;
-			} else {
-				// After timeline end - find correct position
-				insertIndex = newTimeline.findIndex((t) => {
-					const tYear = getReleaseYear(t);
-					return tYear !== null && tYear > trackYear;
-				});
-				if (insertIndex === -1) insertIndex = newTimeline.length;
-			}
-		} else if (placementType === 'same' && year !== undefined) {
-			// Find position where year matches
-			insertIndex = newTimeline.findIndex((t) => {
-				const tYear = getReleaseYear(t);
-				return tYear !== null && tYear > year;
-			});
-			if (insertIndex === -1) insertIndex = newTimeline.length;
-		} else {
-			// First track - find correct position
-			insertIndex = newTimeline.findIndex((t) => {
-				const tYear = getReleaseYear(t);
-				return tYear !== null && tYear >= trackYear;
-			});
-			if (insertIndex === -1) insertIndex = newTimeline.length;
-		}
-
-		newTimeline.splice(insertIndex, 0, track);
-
-		// Check if timeline is in correct order
-		let correct = true;
-		for (let i = 0; i < newTimeline.length - 1; i++) {
-			const year1 = getReleaseYear(newTimeline[i]);
-			const year2 = getReleaseYear(newTimeline[i + 1]);
-			if (year1 === null || year2 === null || year1 > year2) {
-				correct = false;
-				break;
-			}
-		}
-
-		return { correct, correctPosition: insertIndex };
+	// Place track from gap selection
+	function placeTrackFromGap(gapIndex: number) {
+		if (!gameEngine) return;
+		gameEngine.placeTrackFromGap(gapIndex);
+		showReleaseDates = true;
+		exactYearBonusAwarded = null;
 	}
 
-	// Place track
-	function placeTrack() {
-		if (!currentTrack || selectedPlacementType === null) return;
-
-		const player = players[currentPlayerIndex];
-		let referenceIndex: number | null = null;
-
-		if (selectedPlacementType === 'before' || selectedPlacementType === 'after') {
-			// If no track selected, it means before/after timeline start/end
-			if (selectedTrackIndex !== null) {
-				referenceIndex = selectedTrackIndex;
-			}
-		}
-
-		const result = validatePlacement(
-			currentPlayerIndex,
-			currentTrack,
-			selectedPlacementType,
-			referenceIndex,
-			selectedPlacementType === 'same' ? selectedYear : undefined
-		);
-
-		// Insert track at correct position
-		const insertIndex = result.correctPosition >= 0 ? result.correctPosition : player.timeline.length;
-		player.timeline.splice(insertIndex, 0, currentTrack);
-
-		// Update score based on guess mode
-		const trackYear = getReleaseYear(currentTrack);
-		let bonusAwarded: number | null = null;
-		const isExactYearGuess = exactYearGuessEnabled && selectedPlacementType === 'same';
-
-		if (isExactYearGuess && trackYear !== null) {
-			// Exact year guess mode: 2 points if correct year, 0 points if wrong
-			if (selectedYear === trackYear) {
-				player.score += 2;
-				bonusAwarded = 2;
-			} else {
-				player.score = 0;
-				bonusAwarded = 0;
-			}
-		} else {
-			// Timeline placement mode: 1 point if correct order, 0 points if wrong
-			if (result.correct) {
-				player.score += 1;
-			} else {
-				player.score = 0;
-			}
-		}
-
-		// Remove track from available tracks
-		availableTracks = availableTracks.filter((t) => t !== currentTrack);
-
-		roundResult = result;
-		exactYearBonusAwarded = isExactYearGuess ? bonusAwarded : null;
+	// Place track in same year as card selection
+	function placeTrackSameYear(cardIndex: number) {
+		if (!gameEngine) return;
+		gameEngine.placeTrackSameYear(cardIndex);
 		showReleaseDates = true;
-		gameStatus = 'roundEnd';
-		activeView = 'track';
-
-		// Check win condition
-		if (player.score >= 10) {
-			setTimeout(() => {
-				endGame();
-			}, 2000);
-		}
+		exactYearBonusAwarded = null;
 	}
 
 	function nextTurn() {
-		if (gameStatus === 'roundEnd') {
-			currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
-			turnNumber++;
-			selectRandomTrack();
-			gameStatus = 'playing';
-		}
+		if (!gameEngine) return;
+		gameEngine.nextTurn();
+		blurred = true;
+		stopTrack();
 	}
 
 	function endGame() {
-		gameStatus = 'gameEnd';
+		if (!gameEngine) return;
+		gameEngine.endGame();
 		showReleaseDates = true;
 		stopTrack();
 	}
@@ -472,110 +411,192 @@
 		goto('/playlist2');
 	}
 
-	function handleTrackClick(index: number) {
-		if (!currentTrack || showReleaseDates) return;
-		selectedReferenceTrackIndex = index;
-		dialogPlacementType = null;
-		showPlacementDialog = true;
+	function handleRevealClick() {
+		blurred = false;
 	}
 
-	function confirmPlacement(placementType: PlacementType) {
-		if (!currentTrack || selectedReferenceTrackIndex === null) return;
-		
-		selectedPlacementType = placementType;
-		selectedTrackIndex = selectedReferenceTrackIndex;
-		showPlacementDialog = false;
-		placeTrack();
-		
-		// Reset selection state
-		selectedReferenceTrackIndex = null;
-		dialogPlacementType = null;
+	// Detect needle collision - moved from RAF loop to scroll event
+	function detectNeedleCollision() {
+		if (!timelineReel || !gameEngine || gameEngine.gameStatus !== 'playing') {
+			showDropButton = false;
+			activeGapIndex = null;
+			activeCardIndex = null;
+			return;
+		}
+
+		const centerX = window.innerWidth / 2;
+		const children = Array.from(timelineReel.children) as HTMLElement[];
+		let closestChild: HTMLElement | null = null;
+		let minDistance = Infinity;
+		let closestIndex = -1;
+
+		children.forEach((child, index) => {
+			const rect = child.getBoundingClientRect();
+			const childCenterX = rect.left + rect.width / 2;
+			const distance = Math.abs(centerX - childCenterX);
+
+			if (distance < minDistance) {
+				minDistance = distance;
+				closestChild = child;
+				closestIndex = index;
+			}
+		});
+
+		// Optimize opacity updates: only update previous active element and new active element
+		if (previousActiveElement && previousActiveElement.classList.contains('timeline-card')) {
+			previousActiveElement.style.opacity = '0.5';
+		}
+
+		const closestElement: HTMLElement | null = closestChild;
+		if (closestElement) {
+			const element = closestElement as HTMLElement;
+			if (element.classList.contains('timeline-card')) {
+				element.style.opacity = '1';
+				previousActiveElement = element;
+			} else if (previousActiveElement) {
+				previousActiveElement.style.opacity = '0.5';
+				previousActiveElement = null;
+			}
+
+			// Check if closest is a gap or a card
+			if (element.classList.contains('timeline-gap')) {
+				const gapIndex = parseInt(element.dataset?.gapIndex || '0', 10);
+				activeGapIndex = gapIndex;
+				activeCardIndex = null;
+				showDropButton = true;
+
+				// Activate gap marker - only update the active one
+				children.forEach((child) => {
+					if (child.classList.contains('timeline-gap')) {
+						child.classList.toggle('active', child === element);
+					}
+				});
+			} else if (element.classList.contains('timeline-card')) {
+				const cardIndex = parseInt(element.dataset?.index || '-1', 10);
+				if (cardIndex >= 0) {
+					activeCardIndex = cardIndex;
+					activeGapIndex = null;
+					showDropButton = true;
+				} else {
+					activeCardIndex = null;
+					activeGapIndex = null;
+					showDropButton = false;
+				}
+
+				// Deactivate all gaps
+				children.forEach((child) => {
+					if (child.classList.contains('timeline-gap')) {
+						child.classList.remove('active');
+					}
+				});
+			} else {
+				activeGapIndex = null;
+				activeCardIndex = null;
+				showDropButton = false;
+
+				// Deactivate all gaps
+				children.forEach((child) => {
+					if (child.classList.contains('timeline-gap')) {
+						child.classList.remove('active');
+					}
+				});
+			}
+		} else {
+			activeGapIndex = null;
+			activeCardIndex = null;
+			showDropButton = false;
+
+			// Deactivate all gaps
+			children.forEach((child) => {
+				if (child.classList.contains('timeline-gap')) {
+					child.classList.remove('active');
+				}
+			});
+		}
 	}
 
-	function cancelPlacement() {
-		showPlacementDialog = false;
-		selectedReferenceTrackIndex = null;
-		dialogPlacementType = null;
+	// Timeline Navigation Functions
+	function updateScrollState() {
+		if (!timelineReel) {
+			canScrollLeft = false;
+			canScrollRight = false;
+			return;
+		}
+
+		const { scrollLeft, scrollWidth, clientWidth } = timelineReel;
+		canScrollLeft = scrollLeft > 0;
+		canScrollRight = scrollLeft < scrollWidth - clientWidth - 1; // -1 for floating point precision
 	}
 
-	function handlePlaceFirstTrack() {
-		// Place first track without confirmation (no reference track)
-		selectedPlacementType = 'before';
-		selectedTrackIndex = null;
-		placeTrack();
+	function scrollTimelineLeft() {
+		if (!timelineReel) return;
+		const scrollDistance = 150; // Card width (140px) + margins
+		timelineReel.scrollBy({ left: -scrollDistance, behavior: 'smooth' });
 	}
 
-	function handleSelectYear(year: number) {
-		selectedYear = year;
+	function scrollTimelineRight() {
+		if (!timelineReel) return;
+		const scrollDistance = 150; // Card width (140px) + margins
+		timelineReel.scrollBy({ left: scrollDistance, behavior: 'smooth' });
 	}
 
-	function handlePlaceSameYearFromControls() {
-		if (!currentTrack) return;
-		selectedPlacementType = 'same';
-		selectedTrackIndex = null;
-		placeTrack();
-	}
+	// Derived values from game engine
+	const currentPlayer = $derived(gameEngine?.currentPlayer);
+	const winner = $derived(gameEngine?.winner);
+	const totalTurns = $derived(gameEngine?.totalTurns ?? 0);
+	const tracksPlaced = $derived(gameEngine?.tracksPlaced ?? 0);
+	const tracksRemaining = $derived(gameEngine?.tracksRemaining ?? 0);
+	const gameStatus = $derived(gameEngine?.gameStatus ?? 'setup');
+	const roundResult = $derived(gameEngine?.roundResult ?? null);
+	const currentTrack = $derived(gameEngine?.currentTrack ?? null);
+	const players = $derived(gameEngine?.players ?? []);
+	const currentPlayerIndex = $derived(gameEngine?.currentPlayerIndex ?? 0);
+	const turnNumber = $derived(gameEngine?.turnNumber ?? 1);
 
-	function handlePlaceSameYear(index: number) {
-		if (!currentPlayer || index >= currentPlayer.timeline.length) return;
-		const referenceTrack = currentPlayer.timeline[index];
-		const referenceYear = getReleaseYear(referenceTrack);
-		if (referenceYear === null) return;
-		
-		selectedYear = referenceYear;
-		selectedPlacementType = 'same';
-		selectedTrackIndex = index;
-		placeTrack();
-	}
-
-	const currentPlayer = $derived(players[currentPlayerIndex]);
-	const winner = $derived(players.find((p) => p.score >= 10));
-	const totalTurns = $derived(Math.ceil((availableTracks.length + (players.reduce((sum, p) => sum + p.timeline.length, 0))) / players.length));
-	const tracksPlaced = $derived(players.reduce((sum, p) => sum + p.timeline.length, 0));
-	const tracksRemaining = $derived(availableTracks.length);
-	
-	const referenceTrack = $derived(
-		currentPlayer && selectedReferenceTrackIndex !== null && selectedReferenceTrackIndex < currentPlayer.timeline.length
-			? currentPlayer.timeline[selectedReferenceTrackIndex]
-			: null
+	// Build timeline items (cards and gaps), grouping tracks by year
+	const timelineItems = $derived(
+		gameEngine ? gameEngine.buildTimelineItems(currentPlayer) : [{ type: 'gap' as const, gapIndex: 0 }]
 	);
-
-	// First round is now automatically applied for all players in initializeGame()
-	// No need for auto-placement effect anymore
 </script>
 
-<PageHeader title="TuneTap Game" />
-
 {#if tracks.length === 0}
-	<Card.Root class="no-tracks">
-		<Card.Content>
-			<p>No tracks available. Please go back and load a playlist.</p>
-			<Button variant="link" href="/playlist2">Back to Playlist Input</Button>
-		</Card.Content>
-	</Card.Root>
+	<div class="no-tracks-container">
+		<Card.Root class="no-tracks">
+			<Card.Content>
+				<p>No tracks available. Please go back and load a playlist.</p>
+				<Button variant="link" href="/playlist2">Back to Playlist Input</Button>
+			</Card.Content>
+		</Card.Root>
+	</div>
 {:else if gameStatus === 'setup'}
-	<PlayerSetup
-		{playerNames}
-		playableTracksCount={playableTracks.length}
-		onStartGame={initializeGame}
-	/>
-{:else if gameStatus === 'gameEnd'}
-	<GameEndScreen {players} {winner} onRestart={restartGame} />
-
-	<!-- Show all timelines with release dates -->
-	<div class="all-timelines-end">
-		<AllPlayersTimelines
-			{players}
-			currentPlayerIndex={0}
-			showReleaseDates={true}
+	<div class="setup-container">
+		<ActiveView.PlayerSetup
+			{playerNames}
+			playableTracksCount={playableTracks.length}
+			onStartGame={initializeGame}
 		/>
 	</div>
+{:else if gameStatus === 'gameEnd'}
+	<div class="game-end-container">
+		<ActiveView.GameEndScreen {players} {winner} onRestart={restartGame} />
+	</div>
 {:else}
-	<!-- Game playing state -->
-	<div class="game-shell">
-		<div class="game-header-stack">
-			{#if currentPlayer !== undefined}
-				<UnifiedGameHeader
+	<!-- Needle Drop Layout -->
+	<div id="app-shell" class:mobile={viewportSize === 'mobile'} class:tablet={viewportSize === 'tablet'} class:desktop={viewportSize === 'desktop'}>
+		<!-- Audio element -->
+		<audio
+			bind:this={audioElement}
+			bind:paused={isPaused}
+			src={currentTrack?.audioUrl}
+			onended={() => {
+				isPlaying = false;
+				isPaused = true;
+			}}></audio>
+
+		<!-- Header (Z-index 4) -->
+		{#if currentPlayer !== undefined}
+			<div class="game-header-wrapper">
+				<ActiveView.Header
 					{currentPlayer}
 					{players}
 					{currentPlayerIndex}
@@ -586,130 +607,54 @@
 					onPlay={playTrack}
 					onStop={stopTrack}
 				/>
-			{/if}
-
-			<div class="status-strip">
-				<div class="status-chip">
-					<span>Tracks Left</span>
-					<strong>{tracksRemaining}</strong>
-				</div>
-				<div class="status-chip">
-					<span>Placed</span>
-					<strong>{tracksPlaced}</strong>
-				</div>
-				<div class="status-chip">
-					<span>Queue</span>
-					<strong>{queueSize}</strong>
-				</div>
-				<div class="status-chip toggles">
-					<label>
-						<span>Song</span>
-						<Switch aria-label="Toggle song name visibility" bind:checked={showSongName} />
-					</label>
-					<label>
-						<span>Artist</span>
-						<Switch aria-label="Toggle artist visibility" bind:checked={showArtistName} />
-					</label>
-				</div>
 			</div>
-		</div>
-
-			<Tabs.Root bind:value={activeView} class="game-tabs">
-				<Tabs.List class="game-tabs-list">
-					<Tabs.Trigger value="track">Track</Tabs.Trigger>
-					<Tabs.Trigger value="timeline" disabled={currentPlayer === undefined}>
-						Timeline
-					</Tabs.Trigger>
-				</Tabs.List>
-
-				<Tabs.Content value="track" class="game-tab-panel">
-					<Card.Root class="stage-card">
-						<Card.Header class="stage-card-header">
-							<div>
-								<Card.Title>Current Challenge</Card.Title>
-								<Card.Description>
-									Keep your streak alive with precise placements.
-								</Card.Description>
-							</div>
-							<div class="stage-meta">
-								<div>
-									<span class="pill-label">Current Player</span>
-									<strong>{currentPlayer?.name ?? '—'}</strong>
-								</div>
-								<div>
-									<span class="pill-label">Turn</span>
-									<strong>{turnNumber}/{totalTurns}</strong>
-								</div>
-							</div>
-						</Card.Header>
-				<Card.Content class="stage-card-content">
-					<CurrentTrackCard
-						track={currentTrack}
-						{showSongName}
-						{showArtistName}
-						revealed={showReleaseDates}
-					/>
-
-							{#if gameStatus === 'playing' && currentTrack && currentPlayer}
-								<div class="stage-divider"></div>
-								<PlacementControls
-									{currentTrack}
-									{currentPlayer}
-									{selectedYear}
-									onSelectYear={handleSelectYear}
-									bind:exactYearGuessEnabled
-									onPlaceSameYear={handlePlaceSameYearFromControls}
-								/>
-							{:else}
-								<p class="stage-hint">
-									Finish the current round to continue placing tracks.
-								</p>
-							{/if}
-						</Card.Content>
-					</Card.Root>
-				</Tabs.Content>
-
-				<Tabs.Content value="timeline" class="game-tab-panel timeline-panel">
-					{#if currentPlayer !== undefined}
-						<AllPlayersTimelines
-							{players}
-							{currentPlayerIndex}
-							{showReleaseDates}
-							selectedTrackIndex={selectedReferenceTrackIndex}
-							{showSongName}
-							{showArtistName}
-							onTrackClick={handleTrackClick}
-							onPlaceFirstTrack={handlePlaceFirstTrack}
-						/>
-					{:else}
-						<p class="timeline-placeholder">Timeline will appear once the game starts.</p>
-					{/if}
-				</Tabs.Content>
-			</Tabs.Root>
-
-		<!-- Placement dialog -->
-		{#if currentTrack && referenceTrack}
-			<PlacementDialog
-				bind:open={showPlacementDialog}
-				{currentTrack}
-				referenceTrack={referenceTrack}
-				bind:selectedPlacementType={dialogPlacementType}
-				onConfirm={confirmPlacement}
-				onCancel={cancelPlacement}
-			/>
 		{/if}
 
-		<!-- Round result modal -->
-		{#if gameStatus === 'roundEnd' && roundResult && currentPlayer}
-			<RoundResultModal
-				result={roundResult}
-				currentPlayer={currentPlayer}
-				{currentTrack}
-				exactYearBonusAwarded={exactYearBonusAwarded}
-				onNextTurn={nextTurn}
-			/>
-		{/if}
+		<!-- Zone A: The Stage (Top 40%) -->
+		<ActiveView.Stage
+			{currentTrack}
+			{isPlaying}
+			{showSongName}
+			{showArtistName}
+			{showReleaseDates}
+			{blurred}
+			onRevealClick={handleRevealClick}
+		/>
+
+		<!-- Zone B: The Needle (Middle Anchor) -->
+		<ActiveView.Needle
+			{showDropButton}
+			{activeGapIndex}
+			{activeCardIndex}
+			{gameStatus}
+			onPlaceFromGap={placeTrackFromGap}
+			onPlaceSameYear={placeTrackSameYear}
+		/>
+
+		<!-- Zone C: The Timeline Reel (Bottom Flex) -->
+		<ActiveView.Reel
+			bind:timelineReel
+			{timelineItems}
+			{canScrollLeft}
+			{canScrollRight}
+			{showSongName}
+			{showArtistName}
+			{showReleaseDates}
+			onScrollLeft={scrollTimelineLeft}
+			onScrollRight={scrollTimelineRight}
+		/>
 	</div>
+
+	<!-- Round result modal (Z-index 5) -->
+	{#if gameStatus === 'roundEnd' && roundResult && currentPlayer}
+		<ActiveView.RoundResultModal
+			result={roundResult}
+			currentPlayer={currentPlayer}
+			{currentTrack}
+			exactYearBonusAwarded={exactYearBonusAwarded}
+			onNextTurn={nextTurn}
+		/>
+	{/if}
 {/if}
 
 <style>
@@ -718,159 +663,72 @@
 		margin: 2rem auto;
 	}
 
-	.all-timelines-end {
-		margin-top: 2rem;
-	}
-
-	.game-shell {
-		display: flex;
-		flex-direction: column;
-		gap: 1.5rem;
-		margin-top: 1.5rem;
-	}
-
-	.game-header-stack {
-		display: flex;
-		flex-direction: column;
-		gap: 1rem;
-	}
-
-	.status-strip {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.75rem;
-		align-items: center;
-		padding: 0.5rem 0;
-	}
-
-	.status-chip {
-		display: flex;
-		flex-direction: column;
-		gap: 0.15rem;
-		padding: 0.5rem 0.75rem;
-		border-radius: calc(var(--radius) - 4px);
-		border: 1px solid var(--border);
-		background-color: color-mix(in oklch, var(--muted) 18%, transparent);
-		font-size: 0.85rem;
-	}
-
-	.status-chip strong {
-		font-size: 1.25rem;
-		font-weight: 600;
-	}
-
-	.status-chip.toggles {
-		flex-direction: row;
-		gap: 1rem;
-		align-items: center;
-	}
-
-	.status-chip.toggles label {
+	.no-tracks-container,
+	.setup-container,
+	.game-end-container {
+		min-height: 100vh;
+		padding: 2rem;
 		display: flex;
 		align-items: center;
-		gap: 0.35rem;
-		font-weight: 600;
+		justify-content: center;
+		position: relative;
+		z-index: 1;
 	}
 
-	.pill-label {
-		font-size: 0.75rem;
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
-		color: var(--muted-foreground);
+	/* Override PageContainer padding for this page */
+	:global(body) {
+		overflow: hidden;
 	}
 
-	:global(.stage-card) {
-		height: fit-content;
+	:global(.content-layer) {
+		padding: 0 !important;
+		overflow: hidden !important;
 	}
 
-	:global(.stage-card-header) {
-		display: flex;
-		flex-wrap: wrap;
-		justify-content: space-between;
-		gap: 1rem;
-	}
-
-	.stage-meta {
-		display: flex;
-		gap: 1rem;
-		align-items: flex-end;
-	}
-
-	.stage-meta div {
+	/* #app-shell: Fixed Viewport Container */
+	#app-shell {
 		display: flex;
 		flex-direction: column;
-		gap: 0.25rem;
+		height: 100vh;
+		width: 100vw;
+		margin: 0 auto;
+		overflow: hidden;
+		background: var(--background);
+		position: fixed;
+		top: 0;
+		left: 50%;
+		transform: translateX(-50%);
+		z-index: 1000;
 	}
 
-	.stage-meta strong {
-		font-size: 1.25rem;
+	#app-shell.mobile {
+		max-width: 430px;
 	}
 
-	:global(.stage-card-content) {
-		display: flex;
-		flex-direction: column;
-		gap: 1.5rem;
+	#app-shell.tablet {
+		max-width: 768px;
 	}
 
-	.stage-divider {
-		width: 100%;
-		height: 1px;
-		background-color: var(--border);
+	#app-shell.desktop {
+		max-width: 1200px;
 	}
 
-	.stage-hint {
-		margin: 0;
-		color: var(--muted-foreground);
-		font-size: 0.9rem;
-		text-align: center;
+	.game-header-wrapper {
+		position: relative;
+		z-index: 4;
+		flex-shrink: 0;
+		padding: 0.5rem 1rem;
+		background: var(--background);
 	}
 
-	:global(.game-tabs) {
-		display: flex;
-		flex-direction: column;
-		gap: 1rem;
+	.game-header-wrapper :global(.unified-header) {
+		margin-bottom: 0;
 	}
 
-	:global(.game-tabs-list) {
-		width: 100%;
-	}
 
-	:global(.game-tab-panel) {
-		width: 100%;
-	}
-
-	:global(.timeline-panel) {
-		padding: 1rem 1.25rem;
-		border-radius: calc(var(--radius) - 2px);
-		border: 1px solid var(--border);
-		background-color: color-mix(in oklch, var(--muted) 18%, transparent);
-	}
-
-	:global(.timeline-placeholder) {
-		margin: 0;
-		color: var(--muted-foreground);
-		text-align: center;
-		padding: 2rem 0;
-	}
-
-	@media (max-width: 768px) {
-		.stage-meta {
-			width: 100%;
-			justify-content: space-between;
-		}
-
-		.status-chip {
-			flex: 1 1 calc(50% - 0.5rem);
-		}
-
-		.status-chip.toggles {
-			flex-direction: column;
-			align-items: flex-start;
-		}
-
-		.status-chip.toggles label {
-			width: 100%;
-			justify-content: space-between;
+	@media (max-width: 430px) {
+		#app-shell {
+			max-width: 100vw;
 		}
 	}
 </style>
