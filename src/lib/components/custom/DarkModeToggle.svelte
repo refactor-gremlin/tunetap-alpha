@@ -39,13 +39,19 @@
 	class="relative overflow-hidden"
 	aria-label="Toggle theme"
 >
-    <div
-        class="absolute inset-0 flex items-center justify-center transition-transform duration-500 ease-in-out {currentMode === 'dark' ? 'rotate-0' : '-rotate-90 scale-0'}"
-    >
+	<div
+		class="absolute inset-0 flex items-center justify-center transition-transform duration-500 ease-in-out {currentMode ===
+		'dark'
+			? 'rotate-0'
+			: 'scale-0 -rotate-90'}"
+	>
 		<MoonIcon class="h-[1.2rem] w-[1.2rem]" />
 	</div>
 	<div
-        class="absolute inset-0 flex items-center justify-center transition-transform duration-500 ease-in-out {currentMode === 'dark' ? 'rotate-90 scale-0' : 'rotate-0'}"
+		class="absolute inset-0 flex items-center justify-center transition-transform duration-500 ease-in-out {currentMode ===
+		'dark'
+			? 'scale-0 rotate-90'
+			: 'rotate-0'}"
 	>
 		<SunIcon class="h-[1.2rem] w-[1.2rem]" />
 	</div>
@@ -73,4 +79,4 @@
 			clip-path: circle(0px at var(--clip-x) var(--clip-y));
 		}
 	}
-</style> 
+</style>

@@ -27,12 +27,14 @@ TuneTap is a web-based music knowledge game that challenges players to arrange s
 ### Installation
 
 1. Clone the repository:
+
 ```bash
 git clone https://github.com/yourusername/tunetap-alpha.git
 cd tunetap-alpha
 ```
 
 2. Install dependencies:
+
 ```bash
 npm install
 # or
@@ -42,17 +44,20 @@ yarn install
 ```
 
 3. Set up the database:
+
 ```bash
 npx prisma generate
 npx prisma migrate dev
 ```
 
 4. Create a `.env` file (optional - defaults work for development):
+
 ```env
 DATABASE_URL="file:./dev.db"
 ```
 
 5. Start the development server:
+
 ```bash
 npm run dev
 ```
@@ -70,11 +75,13 @@ npm run dev
 ### Game Modes
 
 Currently, TuneTap supports a basic mode where you can:
+
 - Listen to tracks from your playlist
 - View release dates as they're fetched
 - Arrange tracks chronologically
 
 Future game modes:
+
 - **Original Mode**: Guess if a song was released before or after other songs
 - **Expert Mode**: Name the artist, song title, and exact release year
 
@@ -139,6 +146,7 @@ npx prisma migrate reset
 ### Release Date Caching
 
 TuneTap uses SQLite to cache release dates from MusicBrainz, significantly reducing API calls for repeated tracks. The cache stores:
+
 - Track name
 - Artist name
 - Release date (YYYY-MM-DD format)
@@ -147,6 +155,7 @@ TuneTap uses SQLite to cache release dates from MusicBrainz, significantly reduc
 ### MusicBrainz Queue System
 
 To respect MusicBrainz API rate limits, TuneTap implements a queue system that:
+
 - Processes release date lookups sequentially
 - Shows queue size in real-time
 - Handles errors gracefully
@@ -155,6 +164,7 @@ To respect MusicBrainz API rate limits, TuneTap implements a queue system that:
 ### Audio Sources
 
 TuneTap tries multiple sources for audio playback:
+
 1. Spotify preview URLs (30-second previews)
 2. YouTube videos (full songs when available)
 

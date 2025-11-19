@@ -33,7 +33,12 @@
 			<p class="tracks-info">
 				{playableTracksCount} playable tracks available
 			</p>
-			<Button size="lg" onclick={onStartGame} disabled={playableTracksCount < 10} class="start-button">
+			<Button
+				size="lg"
+				onclick={onStartGame}
+				disabled={playableTracksCount < 10}
+				class="start-button"
+			>
 				Start Game
 			</Button>
 		</div>
@@ -72,4 +77,3 @@
 		width: 100%;
 	}
 </style>
-

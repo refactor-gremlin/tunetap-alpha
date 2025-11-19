@@ -1,12 +1,12 @@
 <script lang="ts">
 	import AnimatedGradient from './AnimatedGradient.svelte';
 
-	let { 
-		class: className = '', 
+	let {
+		class: className = '',
 		children,
 		maxWidth = true
-	} = $props<{ 
-		class?: string; 
+	} = $props<{
+		class?: string;
 		children: import('svelte').Snippet;
 		maxWidth?: boolean;
 	}>();
@@ -20,7 +20,7 @@
 	}
 </script>
 
-<div 
+<div
 	class="page-container {className}"
 	bind:this={containerElement}
 	onmousemove={handleMouseMove}
@@ -62,4 +62,3 @@
 		margin: 0 auto;
 	}
 </style>
-

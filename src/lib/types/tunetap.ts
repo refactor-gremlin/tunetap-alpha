@@ -19,4 +19,3 @@ export interface YearMarker {
 	position: number; // Percentage (0-100)
 	isDecade: boolean;
 }
-

@@ -61,14 +61,13 @@
 	const noiseStyle = `background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.7" numOctaves="10" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(%23n)"/></svg>');`;
 
 	// Default full-spectrum palette if none is provided
-	const activePalette =
-		palette || [
-			'#FFD700', // Gold shimmer
-			'#FF38A8', // Hot pink highlight
-			'#4A90E2', // Electric blue
-			'#8E24AA', // Vibrant purple
-			'#00E676' // Neon green
-		];
+	const activePalette = palette || [
+		'#FFD700', // Gold shimmer
+		'#FF38A8', // Hot pink highlight
+		'#4A90E2', // Electric blue
+		'#8E24AA', // Vibrant purple
+		'#00E676' // Neon green
+	];
 
 	let mouseX = $state(50);
 	let mouseY = $state(50);
@@ -173,13 +172,13 @@
 	{...restProps}
 >
 	<div
-		class="bg-background/80 backdrop-blur-lg border shadow-lg relative overflow-hidden rounded-lg w-full h-full"
+		class="relative h-full w-full overflow-hidden rounded-lg border bg-background/80 shadow-lg backdrop-blur-lg"
 		style="transform-style: preserve-3d;"
 	>
 		{#if holographic.enabled}
 			<!-- Main Holographic Layer -->
 			<div
-				class="absolute inset-0 pointer-events-none"
+				class="pointer-events-none absolute inset-0"
 				style="
         background: {holographicEffect};
         opacity: {hologramSpring.current.intensity * intensity};
@@ -189,7 +188,7 @@
 
 			<!-- Glare Layer -->
 			<div
-				class="absolute inset-0 pointer-events-none"
+				class="pointer-events-none absolute inset-0"
 				style="
         background: {glareEffect};
         opacity: {hologramSpring.current.intensity * 0.8 * intensity};
@@ -199,7 +198,7 @@
 
 			<!-- Dynamic Border Highlight -->
 			<div
-				class="absolute inset-[-1px] rounded-lg pointer-events-none"
+				class="pointer-events-none absolute inset-[-1px] rounded-lg"
 				style="
         background: {borderHighlight};
         opacity: {hologramSpring.current.intensity * intensity};
@@ -212,16 +211,13 @@
 
 			<!-- Optional Noise Layer -->
 			{#if noise}
-				<div
-					class="absolute inset-0 pointer-events-none opacity-[0.03]"
-					style={noiseStyle}
-				></div>
+				<div class="pointer-events-none absolute inset-0 opacity-[0.03]" style={noiseStyle}></div>
 			{/if}
 		{/if}
 
 		<!-- Content wrapper with proper z-index and 3D context -->
-		<div class="relative z-10 w-full h-full" style="transform-style: preserve-3d;">
+		<div class="relative z-10 h-full w-full" style="transform-style: preserve-3d;">
 			{@render children()}
 		</div>
 	</div>
-</div> 
+</div>

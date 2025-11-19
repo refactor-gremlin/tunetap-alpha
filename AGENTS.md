@@ -22,7 +22,7 @@ TuneTap is a web-based music knowledge game built with SvelteKit and Svelte 5. P
 - **State Management**: Runed (Svelte 5 runes utilities)
 - **UI Components**: Custom components built with bits-ui
 - **Form Handling**: SvelteKit Superforms
-- **Music APIs**: 
+- **Music APIs**:
   - Spotify URL Info (playlist fetching)
   - YouTube SR (audio source finding)
   - MusicBrainz API (release date lookup)
@@ -72,8 +72,9 @@ The game follows a turn-based multiplayer format:
 4. **Game End Phase**: Winner is determined (first to 10 correct placements)
 
 **Placement Types**:
+
 - `before`: Place track before a reference track
-- `after`: Place track after a reference track  
+- `after`: Place track after a reference track
 - `same`: Place track in the same year as a reference
 
 **Scoring**: Players must maintain consecutive correct placements from the start. Score resets to 0 if order is broken.
@@ -96,6 +97,7 @@ The project uses Svelte 5 runes extensively:
 - `$effect`: Side effects and reactivity
 
 **Runed Utilities** (from `runed` package):
+
 - `useInterval`: Interval management with cleanup
 - `PersistedState`: Browser storage with cross-tab sync
 - `Debounced`: Debounced reactive state
@@ -107,31 +109,34 @@ The project uses Svelte 5 runes extensively:
 SvelteKit remote functions are used for server-side operations:
 
 **Query Functions** (data fetching):
+
 ```typescript
 export const fetchFirstReleaseDate = query(
-  z.object({
-    trackName: z.string(),
-    artistName: z.string()
-  }),
-  async ({ trackName, artistName }) => {
-    // Server-side logic
-    return result;
-  }
+	z.object({
+		trackName: z.string(),
+		artistName: z.string()
+	}),
+	async ({ trackName, artistName }) => {
+		// Server-side logic
+		return result;
+	}
 );
 ```
 
 **Usage in Components**:
+
 ```svelte
 {#await fetchFirstReleaseDate({ trackName, artistName })}
-  <Loading />
+	<Loading />
 {:then date}
-  <Display date={date} />
+	<Display {date} />
 {:catch error}
-  <ErrorDisplay {error} />
+	<ErrorDisplay {error} />
 {/await}
 ```
 
 **Critical Rules**:
+
 - Always use direct `#await` blocks in templates
 - Never wrap queries in `$derived.by()` or access `.current`
 - Place `svelte:boundary` inside conditionals
@@ -182,6 +187,7 @@ The project implements a queue system to respect MusicBrainz API rate limits:
 - Batch cache checking before API calls
 
 **Usage**:
+
 ```typescript
 import { musicBrainzQueue } from '$lib/server/musicbrainz-queue';
 
@@ -235,6 +241,7 @@ The `timeline.ts` utility provides:
 ### Modifying Game Logic
 
 Game logic is primarily in `src/routes/game2/+page.svelte`:
+
 - `validatePlacement()`: Validates track placement
 - `placeTrack()`: Handles track placement and scoring
 - `selectRandomTrack()`: Selects next track
@@ -304,21 +311,21 @@ npx prisma studio
 
 ```svelte
 <script lang="ts">
-  import { getData } from './data.remote';
-  
-  let condition = $state(true);
+	import { getData } from './data.remote';
+
+	let condition = $state(true);
 </script>
 
 {#if condition}
-  <svelte:boundary>
-    {#await getData({ param: value })}
-      <LoadingSpinner />
-    {:then data}
-      <DisplayComponent {data} />
-    {:catch error}
-      <ErrorMessage {error} />
-    {/await}
-  </svelte:boundary>
+	<svelte:boundary>
+		{#await getData({ param: value })}
+			<LoadingSpinner />
+		{:then data}
+			<DisplayComponent {data} />
+		{:catch error}
+			<ErrorMessage {error} />
+		{/await}
+	</svelte:boundary>
 {/if}
 ```
 
@@ -330,7 +337,7 @@ let currentPlayerIndex = $state(0);
 let gameStatus = $state<GameStatus>('setup');
 
 const currentPlayer = $derived(players[currentPlayerIndex]);
-const winner = $derived(players.find(p => p.score >= 10));
+const winner = $derived(players.find((p) => p.score >= 10));
 ```
 
 ### Timeline Calculations
@@ -346,4 +353,3 @@ const position = calculateTimelinePosition(year, range.minYear, range.maxYear);
 ---
 
 This guide should help AI agents understand the project structure, patterns, and conventions. For specific implementation details, refer to the actual code files and inline documentation.
-

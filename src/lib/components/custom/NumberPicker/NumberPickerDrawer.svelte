@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { MediaQuery } from "svelte/reactivity";
-	import * as Dialog from "$lib/components/shadncn-ui/dialog/index.js";
-	import * as Drawer from "$lib/components/shadncn-ui/drawer/index.js";
-	import { Button, buttonVariants } from "$lib/components/shadncn-ui/button/index.js";
-	import NumberFlow from "@number-flow/svelte";
-	import NumberPicker from "./NumberPicker.svelte";
+	import { MediaQuery } from 'svelte/reactivity';
+	import * as Dialog from '$lib/components/shadncn-ui/dialog/index.js';
+	import * as Drawer from '$lib/components/shadncn-ui/drawer/index.js';
+	import { Button, buttonVariants } from '$lib/components/shadncn-ui/button/index.js';
+	import NumberFlow from '@number-flow/svelte';
+	import NumberPicker from './NumberPicker.svelte';
 
 	let {
 		open = $bindable(false),
@@ -14,15 +14,15 @@
 		step = 1,
 		itemHeight = 40,
 		visibleItems = 5,
-		title = "Select number",
-		description = "",
-		confirmText = "OK",
-		cancelText = "Cancel",
+		title = 'Select number',
+		description = '',
+		confirmText = 'OK',
+		cancelText = 'Cancel',
 		triggerText = null as string | null,
-		triggerVariant = "outline",
+		triggerVariant = 'outline',
 		animateTrigger = false,
 		triggerPrefix = null as string | null,
-		onConfirm,
+		onConfirm
 	} = $props<{
 		open?: boolean;
 		value?: number;
@@ -36,13 +36,13 @@
 		confirmText?: string;
 		cancelText?: string;
 		triggerText?: string | null;
-		triggerVariant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link";
+		triggerVariant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link';
 		animateTrigger?: boolean;
 		triggerPrefix?: string | null;
 		onConfirm?: (value: number) => void;
 	}>();
 
-	const isDesktop = new MediaQuery("(min-width: 768px)");
+	const isDesktop = new MediaQuery('(min-width: 768px)');
 	let tempValue = $state(value);
 
 	$effect(() => {
@@ -65,7 +65,13 @@
 				{#if triggerPrefix}
 					<span class="mr-1">{triggerPrefix}</span>
 				{/if}
-				<NumberFlow value={value} locales="en-US" format={{ useGrouping: false }} aria-hidden="true" willChange />
+				<NumberFlow
+					{value}
+					locales="en-US"
+					format={{ useGrouping: false }}
+					aria-hidden="true"
+					willChange
+				/>
 			{:else}
 				{String(value)}
 			{/if}
@@ -78,9 +84,17 @@
 				{/if}
 			</Dialog.Header>
 			<div class="grid items-start gap-4">
-				<NumberPicker bind:value={tempValue} {min} {max} {step} {itemHeight} {visibleItems} animateInPicker={false} />
+				<NumberPicker
+					bind:value={tempValue}
+					{min}
+					{max}
+					{step}
+					{itemHeight}
+					{visibleItems}
+					animateInPicker={false}
+				/>
 				<div class="flex justify-end gap-2">
-					<Dialog.Close class={buttonVariants({ variant: "outline" })}>{cancelText}</Dialog.Close>
+					<Dialog.Close class={buttonVariants({ variant: 'outline' })}>{cancelText}</Dialog.Close>
 					<Button onclick={handleConfirm}>{confirmText}</Button>
 				</div>
 			</div>
@@ -95,7 +109,13 @@
 				{#if triggerPrefix}
 					<span class="mr-1">{triggerPrefix}</span>
 				{/if}
-				<NumberFlow value={value} locales="en-US" format={{ useGrouping: false }} aria-hidden="true" willChange />
+				<NumberFlow
+					{value}
+					locales="en-US"
+					format={{ useGrouping: false }}
+					aria-hidden="true"
+					willChange
+				/>
 			{:else}
 				{String(value)}
 			{/if}
@@ -108,14 +128,20 @@
 				{/if}
 			</Drawer.Header>
 			<div class="grid items-start gap-4 px-4">
-				<NumberPicker bind:value={tempValue} {min} {max} {step} {itemHeight} {visibleItems} animateInPicker={false} />
+				<NumberPicker
+					bind:value={tempValue}
+					{min}
+					{max}
+					{step}
+					{itemHeight}
+					{visibleItems}
+					animateInPicker={false}
+				/>
 				<Button onclick={handleConfirm}>{confirmText}</Button>
 			</div>
 			<Drawer.Footer class="pt-2">
-				<Drawer.Close class={buttonVariants({ variant: "outline" })}>{cancelText}</Drawer.Close>
+				<Drawer.Close class={buttonVariants({ variant: 'outline' })}>{cancelText}</Drawer.Close>
 			</Drawer.Footer>
 		</Drawer.Content>
 	</Drawer.Root>
 {/if}
-
-

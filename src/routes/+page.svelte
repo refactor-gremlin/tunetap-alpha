@@ -26,11 +26,11 @@
 		flex: 1;
 		min-height: 0;
 	}
-	
+
 	.homepage-content h1 {
 		margin-bottom: 0.5rem;
 	}
-	
+
 	.homepage-content p {
 		margin-bottom: 0;
 	}

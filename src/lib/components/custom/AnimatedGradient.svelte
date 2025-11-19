@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { fade } from "svelte/transition";
-	import { quintOut } from "svelte/easing";
+	import { fade } from 'svelte/transition';
+	import { quintOut } from 'svelte/easing';
 
 	let { mouseX = 50, mouseY = 50 } = $props<{ mouseX?: number; mouseY?: number }>();
 	let mounted = $state(false);
@@ -11,12 +11,12 @@
 </script>
 
 <!-- Background Visual Effects Only -->
-<div 
-	class="background-layer fixed inset-0 z-0" 
+<div
+	class="background-layer fixed inset-0 z-0"
 	in:fade={{ duration: 800, easing: quintOut }}
 	role="presentation"
 >
-	<div class="absolute inset-0 bg-gradient-radial opacity-70"></div>
+	<div class="bg-gradient-radial absolute inset-0 opacity-70"></div>
 
 	<div class="shape-container">
 		<div class="shape shape-1"></div>
@@ -26,10 +26,7 @@
 		<div class="shape shape-5"></div>
 	</div>
 
-	<div 
-		class="grid-pattern"
-		style="--mouse-x: {mouseX}; --mouse-y: {mouseY};"
-	></div>
+	<div class="grid-pattern" style="--mouse-x: {mouseX}; --mouse-y: {mouseY};"></div>
 </div>
 
 <style>
@@ -90,16 +87,8 @@
 		opacity: calc(0.2 + (var(--mouse-x, 50) / 100) * 0.008);
 		background-size: 30px 30px;
 		background-image:
-			linear-gradient(
-				to right,
-				var(--primary) 1px,
-				transparent 1px
-			),
-			linear-gradient(
-				to bottom,
-				var(--primary) 1px,
-				transparent 1px
-			);
+			linear-gradient(to right, var(--primary) 1px, transparent 1px),
+			linear-gradient(to bottom, var(--primary) 1px, transparent 1px);
 		mask-image: radial-gradient(
 			ellipse 800px 600px at calc(var(--mouse-x, 50) * 1%) calc(var(--mouse-y, 50) * 1%),
 			black 0%,
@@ -110,7 +99,7 @@
 		);
 		transition: opacity 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 		transform: translate(
-			calc((var(--mouse-x, 50) - 50) * 0.003px), 
+			calc((var(--mouse-x, 50) - 50) * 0.003px),
 			calc((var(--mouse-y, 50) - 50) * 0.003px)
 		);
 	}
@@ -133,7 +122,7 @@
 		background-color: var(--primary);
 		filter: blur(20px);
 		animation: move 30s linear infinite;
-		box-shadow: 
+		box-shadow:
 			0 0 50px var(--primary),
 			inset 0 0 50px var(--primary);
 	}
@@ -246,11 +235,7 @@
 
 	/* Background Gradient */
 	.bg-gradient-radial {
-		background: radial-gradient(
-			circle at 50% 50%,
-			var(--primary) 0%,
-			transparent 80%
-		);
+		background: radial-gradient(circle at 50% 50%, var(--primary) 0%, transparent 80%);
 		opacity: 0.03;
 		animation: pulse-glow 8s ease-in-out infinite alternate;
 	}

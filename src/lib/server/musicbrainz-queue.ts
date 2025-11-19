@@ -54,16 +54,16 @@ class MusicBrainzQueue {
 				if (timeSinceLastRequest < this.MIN_REQUEST_INTERVAL) {
 					const waitTime = this.MIN_REQUEST_INTERVAL - timeSinceLastRequest;
 					console.log(`[MusicBrainz Queue] Rate limiting: waiting ${waitTime}ms`);
-					await new Promise(resolve => setTimeout(resolve, waitTime));
+					await new Promise((resolve) => setTimeout(resolve, waitTime));
 				}
 
 				// Fetch from MusicBrainz
 				const result = await this.fetchFromMusicBrainz(item.trackName, item.artistName);
 				this.lastRequestTime = Date.now();
-				
+
 				// Cache the result (even if null/undefined)
 				await cacheReleaseDate(item.trackName, item.artistName, result || null);
-				
+
 				item.resolve(result);
 			} catch (error) {
 				console.error(`[MusicBrainz Queue] Error processing "${item.trackName}":`, error);
@@ -93,7 +93,7 @@ class MusicBrainzQueue {
 			const response = await fetch(url, {
 				headers: {
 					'User-Agent': 'TuneTap/1.0.0 (https://github.com/yourusername/tunetap-alpha)',
-					'Accept': 'application/json'
+					Accept: 'application/json'
 				}
 			});
 
@@ -102,7 +102,7 @@ class MusicBrainzQueue {
 				return undefined;
 			}
 
-			const data = await response.json() as {
+			const data = (await response.json()) as {
 				'release-groups'?: Array<{ 'first-release-date'?: string }>;
 			};
 
@@ -130,4 +130,3 @@ class MusicBrainzQueue {
 
 // Singleton instance - shared across all requests
 export const musicBrainzQueue = new MusicBrainzQueue();
-

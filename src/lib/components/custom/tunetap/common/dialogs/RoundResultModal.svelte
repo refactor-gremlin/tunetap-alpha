@@ -21,9 +21,7 @@
 
 	const trackYear = $derived(currentTrack ? getReleaseYear(currentTrack) : null);
 	const isCorrect = $derived(
-		exactYearBonusAwarded !== null
-			? exactYearBonusAwarded > 0
-			: result?.correct ?? false
+		exactYearBonusAwarded !== null ? exactYearBonusAwarded > 0 : (result?.correct ?? false)
 	);
 </script>
 
@@ -31,9 +29,7 @@
 	<Dialog.Root open={true}>
 		<Dialog.Content class="round-result-modal">
 			<Dialog.Header class="fade-in-title">
-				<Dialog.Title class="result-title {
-					isCorrect ? 'correct' : 'incorrect'
-				}">
+				<Dialog.Title class="result-title {isCorrect ? 'correct' : 'incorrect'}">
 					{isCorrect ? '✅ Correct!' : '❌ Incorrect'}
 				</Dialog.Title>
 			</Dialog.Header>
@@ -104,9 +100,7 @@
 				</div>
 			</div>
 			<Dialog.Footer class="fade-in-button">
-				<Button onclick={onNextTurn} size="lg" class="next-button">
-					Next Turn
-				</Button>
+				<Button onclick={onNextTurn} size="lg" class="next-button">Next Turn</Button>
 			</Dialog.Footer>
 		</Dialog.Content>
 	</Dialog.Root>

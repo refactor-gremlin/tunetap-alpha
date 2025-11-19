@@ -49,31 +49,35 @@
 		<div class="controls-section">
 			{#if currentTrack && onPlay && onStop}
 				<div class="play-controls">
-					<Button 
-						size="sm" 
+					<Button
+						size="sm"
 						variant="secondary"
-						onclick={onPlay} 
+						onclick={onPlay}
 						disabled={isPlaying}
 						class="play-button"
 					>
 						{isPlaying ? '⏸ Pause' : '▶ Play'}
 					</Button>
-					<Button 
-						size="sm" 
-						variant="outline"
-						onclick={onStop}
-						class="stop-button"
-					>
-						⏹ Stop
-					</Button>
+					<Button size="sm" variant="outline" onclick={onStop} class="stop-button">⏹ Stop</Button>
 				</div>
 			{/if}
 			<div class="scores-section">
 				{#each players as player, index}
 					{@const status = getStatus(index)}
-					<div class="player-badge" class:current={status === 'current'} class:next={status === 'next'}>
+					<div
+						class="player-badge"
+						class:current={status === 'current'}
+						class:next={status === 'next'}
+					>
 						<span class="badge-name">{player.name}</span>
-						<Badge variant={status === 'current' ? 'default' : status === 'next' ? 'secondary' : 'outline'} class="score-badge">
+						<Badge
+							variant={status === 'current'
+								? 'default'
+								: status === 'next'
+									? 'secondary'
+									: 'outline'}
+							class="score-badge"
+						>
 							{player.score}/10
 						</Badge>
 					</div>
@@ -85,7 +89,11 @@
 
 <style>
 	.unified-header {
-		background: linear-gradient(135deg, var(--primary) 0%, color-mix(in oklch, var(--primary) 80%, black) 100%);
+		background: linear-gradient(
+			135deg,
+			var(--primary) 0%,
+			color-mix(in oklch, var(--primary) 80%, black) 100%
+		);
 		color: var(--primary-foreground);
 		padding: 1rem 1.5rem;
 		border-radius: calc(var(--radius) - 2px);
@@ -208,7 +216,8 @@
 	}
 
 	@keyframes pulse {
-		0%, 100% {
+		0%,
+		100% {
 			transform: scale(1);
 		}
 		50% {
@@ -271,4 +280,3 @@
 		}
 	}
 </style>
-

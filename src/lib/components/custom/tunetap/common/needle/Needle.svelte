@@ -24,7 +24,9 @@
 	<div class="needle-indicator"></div>
 	<div
 		class="drop-button-wrapper"
-		class:visible={showDropButton && (activeGapIndex !== null || activeCardIndex !== null) && gameStatus === 'playing'}
+		class:visible={showDropButton &&
+			(activeGapIndex !== null || activeCardIndex !== null) &&
+			gameStatus === 'playing'}
 	>
 		<Button
 			size="lg"
@@ -35,7 +37,9 @@
 					onPlaceFromGap(activeGapIndex);
 				}
 			}}
-			disabled={!showDropButton || (activeGapIndex === null && activeCardIndex === null) || gameStatus !== 'playing'}
+			disabled={!showDropButton ||
+				(activeGapIndex === null && activeCardIndex === null) ||
+				gameStatus !== 'playing'}
 		>
 			{activeCardIndex !== null ? 'Same Year?' : 'Place Here'}
 		</Button>
@@ -73,7 +77,9 @@
 		transform: translateX(-50%) translateY(-10px);
 		pointer-events: auto;
 		opacity: 0;
-		transition: opacity 0.2s ease, transform 0.2s ease;
+		transition:
+			opacity 0.2s ease,
+			transform 0.2s ease;
 		z-index: 41;
 	}
 

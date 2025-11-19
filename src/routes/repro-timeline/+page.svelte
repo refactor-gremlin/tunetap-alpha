@@ -10,26 +10,26 @@
 
 	const timelineItems = [
 		{ type: 'gap', gapIndex: 0 },
-		{ 
-			type: 'card', 
-			index: 0, 
-			track: { 
-				name: 'Test Track 1', 
-				artists: ['Artist 1'], 
+		{
+			type: 'card',
+			index: 0,
+			track: {
+				name: 'Test Track 1',
+				artists: ['Artist 1'],
 				firstReleaseDate: '2000-01-01',
 				coverImage: null
-			} 
+			}
 		},
 		{ type: 'gap', gapIndex: 1 },
-		{ 
-			type: 'card', 
-			index: 1, 
-			track: { 
-				name: 'Test Track 2', 
-				artists: ['Artist 2'], 
+		{
+			type: 'card',
+			index: 1,
+			track: {
+				name: 'Test Track 2',
+				artists: ['Artist 2'],
 				firstReleaseDate: '2005-01-01',
 				coverImage: null
-			} 
+			}
 		},
 		{ type: 'gap', gapIndex: 2 }
 	];
@@ -76,8 +76,8 @@
 	});
 </script>
 
-	<div class="repro-container">
-		<div class="repro-timeline-zone">
+<div class="repro-container">
+	<div class="repro-timeline-zone">
 		<TimelineReel
 			bind:timelineReel
 			{timelineItems}
@@ -95,10 +95,10 @@
 			bind:this={needleOverlayEl}
 			style={`--needle-horizontal-offset: ${needleHorizontalOffset}px;`}
 		>
-			<Needle 
-				showDropButton={true} 
-				activeGapIndex={0} 
-				activeCardIndex={null} 
+			<Needle
+				showDropButton={true}
+				activeGapIndex={0}
+				activeCardIndex={null}
 				gameStatus="playing"
 				onPlaceFromGap={() => {}}
 				onPlaceSameYear={() => {}}

@@ -27,7 +27,9 @@ export async function getCachedReleaseDate(
 		});
 
 		if (cached) {
-			console.log(`[DB Cache] Found cached release date for "${trackName}" by "${artistName}": ${cached.releaseDate || 'not found'}`);
+			console.log(
+				`[DB Cache] Found cached release date for "${trackName}" by "${artistName}": ${cached.releaseDate || 'not found'}`
+			);
 			return cached.releaseDate;
 		}
 
@@ -47,7 +49,7 @@ export async function getCachedReleaseDatesBatch(
 	tracks: Array<{ trackName: string; artistName: string }>
 ): Promise<Map<string, string | null>> {
 	const result = new Map<string, string | null>();
-	
+
 	if (tracks.length === 0) {
 		return result;
 	}
@@ -83,7 +85,9 @@ export async function getCachedReleaseDatesBatch(
 			result.set(key, foundMap.get(key) ?? null);
 		}
 
-		console.log(`[DB Cache] Batch check: Found ${cached.length} cached dates out of ${tracks.length} tracks`);
+		console.log(
+			`[DB Cache] Batch check: Found ${cached.length} cached dates out of ${tracks.length} tracks`
+		);
 		return result;
 	} catch (error) {
 		console.error(`[DB Cache] Error getting cached release dates batch:`, error);
@@ -122,10 +126,11 @@ export async function cacheReleaseDate(
 			}
 		});
 
-		console.log(`[DB Cache] Cached release date for "${trackName}" by "${artistName}": ${releaseDate || 'not found'}`);
+		console.log(
+			`[DB Cache] Cached release date for "${trackName}" by "${artistName}": ${releaseDate || 'not found'}`
+		);
 	} catch (error) {
 		console.error(`[DB Cache] Error caching release date:`, error);
 		// Don't throw - caching failures shouldn't break the flow
 	}
 }
-

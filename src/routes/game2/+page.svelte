@@ -2,7 +2,11 @@
 	import type { Track } from '$lib/types';
 	import type { Player, PlacementResult, GameStatus, PlacementType } from '$lib/types/tunetap.js';
 	import { page } from '$app/stores';
-	import { fetchFirstReleaseDate, getQueueSize, getCachedReleaseDatesBatchQuery } from './musicbrainz.remote';
+	import {
+		fetchFirstReleaseDate,
+		getQueueSize,
+		getCachedReleaseDatesBatchQuery
+	} from './musicbrainz.remote';
 	import { untrack, onMount, tick } from 'svelte';
 	import { useInterval, useEventListener } from 'runed';
 	import { Button } from '$lib/components/shadncn-ui/button/index.js';
@@ -120,7 +124,7 @@
 	let showDropButton = $state(false);
 	let blurred = $state(true);
 	let previousActiveElement: HTMLElement | null = $state(null);
-	
+
 	// Timeline Navigation State
 	let canScrollLeft = $state(false);
 	let canScrollRight = $state(false);
@@ -139,7 +143,7 @@
 	// Initialize tracks from sessionStorage or page state (only once)
 	onMount(() => {
 		if (hasInitialized) return;
-		
+
 		let loadedTracks: Track[] | null = null;
 		let loadedPlayerCount = 2;
 
@@ -149,12 +153,12 @@
 			const playerCountData = sessionStorage.getItem('tunetap_playerCount');
 			const showSongNameData = sessionStorage.getItem('tunetap_showSongName');
 			const showArtistNameData = sessionStorage.getItem('tunetap_showArtistName');
-			
+
 			if (tracksData) {
 				loadedTracks = JSON.parse(tracksData) as Track[];
 				sessionStorage.removeItem('tunetap_tracks');
 			}
-			
+
 			if (playerCountData) {
 				loadedPlayerCount = parseInt(playerCountData, 10);
 				sessionStorage.removeItem('tunetap_playerCount');
@@ -175,9 +179,9 @@
 
 		// Fallback to page state if sessionStorage didn't work
 		if (!loadedTracks) {
-			const pageState = $page.state as { 
-				tracks?: Track[]; 
-				tracksData?: string; 
+			const pageState = $page.state as {
+				tracks?: Track[];
+				tracksData?: string;
 				playerCount?: number;
 				showSongName?: boolean;
 				showArtistName?: boolean;
@@ -206,7 +210,9 @@
 			hasInitialized = true;
 			tracks = loadedTracks;
 			playerCount = loadedPlayerCount;
-			playerNames = Array(playerCount).fill('').map((_, i) => `Player ${i + 1}`);
+			playerNames = Array(playerCount)
+				.fill('')
+				.map((_, i) => `Player ${i + 1}`);
 
 			// Initialize release date fetching
 			const promises = new Map<number, Promise<string | undefined>>();
@@ -266,18 +272,20 @@
 
 				for (const { index, track } of tracksToFetch) {
 					const artistName = track.artists[0];
-					const promise = fetchFirstReleaseDate({ trackName: track.name, artistName }).then((date) => {
-						untrack(() => {
-							dates.set(index, date);
-							releaseDates = new Map(dates);
-							if (date) {
-								tracks = tracks.map((t, idx) =>
-									idx === index ? { ...t, firstReleaseDate: date } : t
-								);
-							}
-						});
-						return date;
-					});
+					const promise = fetchFirstReleaseDate({ trackName: track.name, artistName }).then(
+						(date) => {
+							untrack(() => {
+								dates.set(index, date);
+								releaseDates = new Map(dates);
+								if (date) {
+									tracks = tracks.map((t, idx) =>
+										idx === index ? { ...t, firstReleaseDate: date } : t
+									);
+								}
+							});
+							return date;
+						}
+					);
 					promises.set(index, promise);
 				}
 
@@ -299,7 +307,7 @@
 		(event: KeyboardEvent) => {
 			// Only handle arrow keys when game is playing
 			if (!gameEngine || gameEngine.gameStatus !== 'playing') return;
-			
+
 			// Don't handle if user is typing in an input
 			if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
 				return;
@@ -323,11 +331,7 @@
 	}
 
 	// Update scroll state when timeline scrolls
-	useEventListener(
-		() => timelineReel,
-		'scroll',
-		handleScroll
-	);
+	useEventListener(() => timelineReel, 'scroll', handleScroll);
 
 	// Update scroll state when timeline items change
 	$effect(() => {
@@ -377,7 +381,7 @@
 		// Always create a fresh instance
 		gameEngine = new TuneTapGame();
 		gameEngine.initializeGame(playableTracks, playerNames);
-		
+
 		// Reset UI state
 		selectedPlacementType = null;
 		selectedTrackIndex = null;
@@ -586,7 +590,9 @@
 
 	// Build timeline items (cards and gaps), grouping tracks by year
 	const timelineItems = $derived(
-		gameEngine ? gameEngine.buildTimelineItems(currentPlayer) : [{ type: 'gap' as const, gapIndex: 0 }]
+		gameEngine
+			? gameEngine.buildTimelineItems(currentPlayer)
+			: [{ type: 'gap' as const, gapIndex: 0 }]
 	);
 </script>
 
@@ -613,7 +619,12 @@
 	</div>
 {:else}
 	<!-- Needle Drop Layout -->
-	<div id="app-shell" class:mobile={viewportSize === 'mobile'} class:tablet={viewportSize === 'tablet'} class:desktop={viewportSize === 'desktop'}>
+	<div
+		id="app-shell"
+		class:mobile={viewportSize === 'mobile'}
+		class:tablet={viewportSize === 'tablet'}
+		class:desktop={viewportSize === 'desktop'}
+	>
 		<!-- Audio element -->
 		<audio
 			bind:this={audioElement}
@@ -622,7 +633,8 @@
 			onended={() => {
 				isPlaying = false;
 				isPaused = true;
-			}}></audio>
+			}}
+		></audio>
 
 		<!-- Header (Z-index 4) -->
 		{#if currentPlayer !== undefined}
@@ -653,7 +665,7 @@
 			style={stageStyles}
 		/>
 
-			<div class="timeline-needle-zone">
+		<div class="timeline-needle-zone">
 			<!-- Zone C: The Timeline Reel (Bottom Flex) -->
 			<TimelineReel
 				bind:timelineReel
@@ -690,9 +702,9 @@
 	{#if gameStatus === 'roundEnd' && roundResult && currentPlayer}
 		<ActiveView.RoundResultModal
 			result={roundResult}
-			currentPlayer={currentPlayer}
+			{currentPlayer}
 			{currentTrack}
-			exactYearBonusAwarded={exactYearBonusAwarded}
+			{exactYearBonusAwarded}
 			onNextTurn={nextTurn}
 		/>
 	{/if}
@@ -799,7 +811,6 @@
 	.timeline-needle-overlay :global(.drop-button-wrapper) {
 		pointer-events: auto;
 	}
-
 
 	@media (max-width: 430px) {
 		#app-shell {

@@ -23,7 +23,7 @@
 	let showArtistName = $state(false);
 
 	let progressMessageElement: HTMLDivElement | null = $state(null);
-	
+
 	// Create interval at component level, but don't start it immediately
 	const progressInterval = useInterval(200, {
 		immediate: false,
@@ -32,7 +32,10 @@
 				const progress = await getPlaylistProgress();
 				if (progress) {
 					// Add new message if it's different from the last one
-					if (progressMessages.length === 0 || progressMessages[progressMessages.length - 1] !== progress.message) {
+					if (
+						progressMessages.length === 0 ||
+						progressMessages[progressMessages.length - 1] !== progress.message
+					) {
 						progressMessages = [...progressMessages, progress.message];
 						// Keep only last 50 messages to prevent memory issues
 						if (progressMessages.length > 50) {
@@ -100,7 +103,7 @@
 				console.error('Error storing tracks:', error);
 				// Fallback: try navigation state with serialized data
 				goto('/game2', {
-					state: { 
+					state: {
 						tracksData: JSON.stringify(tracks),
 						playerCount,
 						showSongName,
@@ -149,7 +152,9 @@
 						<Progress value={(progressCurrent / progressTotal) * 100} />
 					</div>
 					<div class="progress-stats">
-						{progressCurrent} / {progressTotal} tracks ({Math.round((progressCurrent / progressTotal) * 100)}%)
+						{progressCurrent} / {progressTotal} tracks ({Math.round(
+							(progressCurrent / progressTotal) * 100
+						)}%)
 					</div>
 				{/if}
 			</Card.Content>
@@ -179,7 +184,8 @@
 								variant={playerCount === count ? 'default' : 'outline'}
 								onclick={() => (playerCount = count)}
 							>
-								{count} {count === 1 ? 'Player' : 'Players'}
+								{count}
+								{count === 1 ? 'Player' : 'Players'}
 							</Button>
 						{/each}
 					</div>
@@ -196,9 +202,7 @@
 							</label>
 						</div>
 					</div>
-					<Button size="lg" onclick={startGame} class="start-button">
-						Start Game
-					</Button>
+					<Button size="lg" onclick={startGame} class="start-button">Start Game</Button>
 				</div>
 			</Card.Content>
 		</Card.Root>
@@ -212,7 +216,7 @@
 		align-items: center;
 		gap: 2rem;
 	}
-	
+
 	.playlist-content p {
 		margin-bottom: 0;
 		text-align: center;
@@ -314,4 +318,3 @@
 		width: 100%;
 	}
 </style>
-

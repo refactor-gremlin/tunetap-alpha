@@ -14,7 +14,9 @@ export class TuneTapGame {
 
 	// Derived
 	currentPlayer = $derived(
-		this.players.length > 0 && this.currentPlayerIndex >= 0 && this.currentPlayerIndex < this.players.length
+		this.players.length > 0 &&
+			this.currentPlayerIndex >= 0 &&
+			this.currentPlayerIndex < this.players.length
 			? this.players[this.currentPlayerIndex]
 			: undefined
 	);
@@ -203,7 +205,8 @@ export class TuneTapGame {
 		const player = this.players[playerIndex];
 		const result = this.validatePlacement(playerIndex, track, placementType, referenceIndex, year);
 
-		const insertIndex = result.correctPosition >= 0 ? result.correctPosition : player.timeline.length;
+		const insertIndex =
+			result.correctPosition >= 0 ? result.correctPosition : player.timeline.length;
 		player.timeline.splice(insertIndex, 0, track);
 
 		// Ensure timeline is sorted chronologically (oldest to newest, left to right)
@@ -266,7 +269,8 @@ export class TuneTapGame {
 		// Only add track to timeline if guess was correct
 		if (result.correct) {
 			// Insert at the chronologically correct position (calculated by validatePlacement)
-			const insertIndex = result.correctPosition >= 0 ? result.correctPosition : player.timeline.length;
+			const insertIndex =
+				result.correctPosition >= 0 ? result.correctPosition : player.timeline.length;
 			player.timeline.splice(insertIndex, 0, this.currentTrack);
 
 			// Ensure timeline is sorted chronologically (oldest to newest, left to right)
@@ -330,7 +334,8 @@ export class TuneTapGame {
 		// Only add track to timeline if guess was correct
 		if (result.correct) {
 			// Insert at the chronologically correct position (calculated by validatePlacement)
-			const insertIndex = result.correctPosition >= 0 ? result.correctPosition : player.timeline.length;
+			const insertIndex =
+				result.correctPosition >= 0 ? result.correctPosition : player.timeline.length;
 			player.timeline.splice(insertIndex, 0, this.currentTrack);
 
 			// Ensure timeline is sorted chronologically (oldest to newest, left to right)
@@ -467,4 +472,3 @@ export class TuneTapGame {
 		return items;
 	}
 }
-

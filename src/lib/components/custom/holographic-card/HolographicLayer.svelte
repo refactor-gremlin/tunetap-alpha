@@ -87,7 +87,8 @@
 
 		// When not interacting, use the idle animation. Otherwise, use the interactive state.
 		// This creates a smooth handoff.
-		if (interactive.intensity > 0.01) { // Use a small threshold to avoid jitter
+		if (interactive.intensity > 0.01) {
+			// Use a small threshold to avoid jitter
 			return interactive;
 		}
 		return {
@@ -98,8 +99,13 @@
 	});
 
 	// A more vibrant palette for the text shine effect
-	const activeShinePalette =
-		shinePalette || ['#84fab0', '#8fd3f4', '#a18cd1', '#fbc2eb', '#84fab0'];
+	const activeShinePalette = shinePalette || [
+		'#84fab0',
+		'#8fd3f4',
+		'#a18cd1',
+		'#fbc2eb',
+		'#84fab0'
+	];
 
 	// Create the 3D transform for this layer
 	let layerTransform = $derived(holographic.enabled ? `translateZ(${depth}px)` : 'none');
@@ -107,13 +113,9 @@
 	// --- Shine Effect Logic ---
 	let shineStyle = $derived(
 		holographic.enabled && (shine || shineBackground)
-			? `background-image: linear-gradient(${
-					shineState.rotation
-				}deg, ${activeShinePalette.join(
+			? `background-image: linear-gradient(${shineState.rotation}deg, ${activeShinePalette.join(
 					', '
-				)}); background-position: ${shineState.x}% ${
-					shineState.y
-				}%; background-size: 200% 200%;`
+				)}); background-position: ${shineState.x}% ${shineState.y}%; background-size: 200% 200%;`
 			: ''
 	);
 
@@ -127,4 +129,4 @@
 >
 	<!-- The actual content of the layer -->
 	{@render children()}
-</div> 
+</div>

@@ -15,26 +15,24 @@ export function getReleaseYear(track: Track): number | null {
  * Always returns a global span (1950-current year) with optional padding
  */
 export function getYearRange(tracks: Track[]): { minYear: number; maxYear: number } | null {
-	const years = tracks
-		.map(getReleaseYear)
-		.filter((year): year is number => year !== null);
+	const years = tracks.map(getReleaseYear).filter((year): year is number => year !== null);
 
 	if (years.length === 0) return null;
 
 	const actualMinYear = Math.min(...years);
 	const actualMaxYear = Math.max(...years);
 	const currentYear = new Date().getFullYear();
-	
+
 	// Global bounds: clamp to 1950 as lower bound, but allow future years for upper bound
 	const GLOBAL_MIN_YEAR = 1950;
 	const GLOBAL_MAX_YEAR = currentYear;
-	
+
 	// Calculate padded range with ±5 years padding around actual range
 	const padding = 5;
 	const paddedMinYear = Math.max(GLOBAL_MIN_YEAR, actualMinYear - padding);
 	// Allow maxYear to exceed current year if tracks are from the future
 	const paddedMaxYear = Math.max(GLOBAL_MAX_YEAR, actualMaxYear + padding);
-	
+
 	// If the actual range is very small or empty, use global bounds but ensure maxYear covers all tracks
 	if (actualMaxYear - actualMinYear < 10) {
 		return {
@@ -42,7 +40,7 @@ export function getYearRange(tracks: Track[]): { minYear: number; maxYear: numbe
 			maxYear: Math.max(GLOBAL_MAX_YEAR, actualMaxYear + padding)
 		};
 	}
-	
+
 	// Otherwise use padded range, ensuring minYear respects global bounds but maxYear can exceed current year
 	return {
 		minYear: Math.max(GLOBAL_MIN_YEAR, paddedMinYear),
@@ -129,7 +127,7 @@ export function generateYearMarkers(
 
 		const isDecade = year % 10 === 0;
 		let position = calculateTimelinePosition(year, minYear, maxYear);
-		
+
 		// Clamp position to valid range
 		position = Math.max(0, Math.min(100, position));
 
@@ -165,4 +163,3 @@ export function validateTimelineOrder(tracks: Track[]): boolean {
 	}
 	return true;
 }
-
