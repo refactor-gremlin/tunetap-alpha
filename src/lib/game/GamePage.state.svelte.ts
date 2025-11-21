@@ -1,11 +1,16 @@
 import type { Track } from '$lib/types';
 import type { PlacementType } from '$lib/types/tunetap.js';
 import { TuneTapGame } from '$lib/game/TuneTapGame.svelte.js';
-import { fetchFirstReleaseDate, getQueueSize, getCachedReleaseDatesBatchQuery } from '../../routes/game/musicbrainz.remote';
+import { fetchFirstReleaseDate, getQueueSize as getQueueSizeRemote, getCachedReleaseDatesBatchQuery } from '../../routes/game/musicbrainz.remote';
 import { untrack, tick } from 'svelte';
 import { useInterval, useEventListener } from 'runed';
 import { goto } from '$app/navigation';
 import type { Page } from '@sveltejs/kit';
+
+// Export wrapper functions for queue status to be used in components
+export const getQueueSize = getQueueSizeRemote;
+import { getQueueStatus as getQueueStatusRemote } from '../../routes/game/musicbrainz.remote';
+export const getQueueStatus = getQueueStatusRemote;
 
 export class GamePageState {
 	// Tracks and Players

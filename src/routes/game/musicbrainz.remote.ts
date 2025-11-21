@@ -24,6 +24,20 @@ export const getQueueSize = query(async () => {
 	return musicBrainzQueue.getPendingCount();
 });
 
+export const getQueueStatus = query(async () => {
+	const pendingCount = musicBrainzQueue.getPendingCount();
+	// Estimate time remaining (1 second per track)
+	const estimatedSeconds = pendingCount;
+	return {
+		pendingCount,
+		estimatedTimeRemaining: estimatedSeconds,
+		// Format time as readable string
+		timeRemainingString: estimatedSeconds > 60 
+			? `${Math.floor(estimatedSeconds / 60)}m ${estimatedSeconds % 60}s`
+			: `${estimatedSeconds}s`
+	};
+});
+
 export const getCachedReleaseDatesBatchQuery = query(
 	z.object({
 		tracks: z.array(

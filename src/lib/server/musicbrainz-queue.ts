@@ -12,6 +12,7 @@ class MusicBrainzQueue {
 	private isProcessing = false;
 	private lastRequestTime = 0;
 	private readonly MIN_REQUEST_INTERVAL = 1000; // 1 second
+	private cacheCheckPromise: Promise<any> | null = null;
 
 	getQueueSize(): number {
 		return this.queue.length;
@@ -33,7 +34,12 @@ class MusicBrainzQueue {
 		// Not in cache, add to queue
 		return new Promise((resolve, reject) => {
 			this.queue.push({ trackName, artistName, resolve, reject });
-			this.processQueue();
+			
+			// Start processing if not already running
+			if (!this.isProcessing) {
+				// Use setTimeout to avoid blocking the current event loop
+				setTimeout(() => this.processQueue(), 0);
+			}
 		});
 	}
 

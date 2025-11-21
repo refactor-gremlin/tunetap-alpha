@@ -102,6 +102,7 @@ import { Button } from '$lib/components/shadncn-ui/button/index.js';
 		<ActiveView.PlayerSetup
 			playerNames={pageState.playerNames}
 			playableTracksCount={pageState.playableTracks.length}
+			totalTracksCount={pageState.tracks.length}
 			onStartGame={() => pageState.initializeGame()}
 		/>
 	</div>
