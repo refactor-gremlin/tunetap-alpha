@@ -4,7 +4,8 @@ import {
 	getCachedPlaylist,
 	cachePlaylist,
 	getCachedAudioSource,
-	cacheAudioSource
+	cacheAudioSource,
+	getCachedReleaseDatesBatch
 } from '$lib/server/db';
 import { musicBrainzQueue } from '$lib/server/musicbrainz-queue';
 
@@ -104,24 +105,68 @@ function getArtistsFromSpotifyTrack(spotifyTrack: SpotifyTrack): string[] {
 	return artists;
 }
 
+function buildReleaseDateCacheKey(trackName: string, artistName: string) {
+	return `${trackName}|${artistName}`;
+}
+
+async function buildReleaseDateCacheMap(spotifyTracks: SpotifyTrack[]) {
+	const lookupInputs = spotifyTracks
+		.map((track) => {
+			const trackName = track.name || '';
+			const artists = getArtistsFromSpotifyTrack(track);
+			const primaryArtist = artists[0];
+			if (!trackName || !primaryArtist) {
+				return null;
+			}
+			return { trackName, artistName: primaryArtist };
+		})
+		.filter((entry): entry is { trackName: string; artistName: string } => Boolean(entry));
+
+	if (lookupInputs.length === 0) {
+		return new Map<string, string | null>();
+	}
+
+	return getCachedReleaseDatesBatch(lookupInputs);
+}
+
 // In-memory timestamp cache for background refresh
 const lastBackgroundRefresh = new Map<string, number>();
 const BACKGROUND_REFRESH_COOLDOWN = 5 * 60 * 1000; // 5 minutes
 
-function queueTracksForMusicBrainz(spotifyTracks: SpotifyTrack[]) {
+function queueTracksForMusicBrainz(
+	spotifyTracks: SpotifyTrack[],
+	cachedReleaseDates?: Map<string, string | null>
+) {
+	let skipped = 0;
+	let enqueued = 0;
 	console.log(`[Background] Queueing ${spotifyTracks.length} tracks for MusicBrainz lookup...`);
 	spotifyTracks.forEach((track) => {
 		const artists = getArtistsFromSpotifyTrack(track);
 		const trackName = track.name || '';
 		const artistNames = artists.join(', ');
+		const primaryArtist = artists[0];
 
-		if (trackName && artistNames) {
-			// Queue with low priority for background pre-fetching
-			musicBrainzQueue.enqueue(trackName, artistNames, 'low').catch((err) => {
-				console.error(`[Background Queue] Failed to enqueue "${trackName}":`, err);
-			});
+		if (!trackName || !artistNames || !primaryArtist) {
+			return;
 		}
+
+		const cacheKey = buildReleaseDateCacheKey(trackName, primaryArtist);
+		if (cachedReleaseDates?.has(cacheKey)) {
+			skipped += 1;
+			return;
+		}
+
+		musicBrainzQueue.enqueue(trackName, artistNames, 'low').catch((err) => {
+			console.error(`[Background Queue] Failed to enqueue "${trackName}":`, err);
+		});
+		enqueued += 1;
 	});
+
+	if (skipped > 0) {
+		console.log(
+			`[Background] Skipped ${skipped} tracks already cached. Enqueued ${enqueued} remaining tracks.`
+		);
+	}
 }
 
 async function fetchAndQueueBackground(playlistUrl: string) {
@@ -129,7 +174,8 @@ async function fetchAndQueueBackground(playlistUrl: string) {
 	try {
 		const spotifyTracks = (await getTracks(playlistUrl)) as SpotifyTrack[];
 		console.log(`[Background] Found ${spotifyTracks.length} tracks. Queueing...`);
-		queueTracksForMusicBrainz(spotifyTracks);
+		const cachedReleaseDates = await buildReleaseDateCacheMap(spotifyTracks);
+		queueTracksForMusicBrainz(spotifyTracks, cachedReleaseDates);
 	} catch (error) {
 		console.error(`[Background] Failed to fetch playlist for background queueing:`, error);
 	}
@@ -165,12 +211,44 @@ export async function processPlaylist(
 		console.log(`[processPlaylist] Found cached playlist for "${playlistUrl}"`);
 		try {
 			const cachedTracks = JSON.parse(cachedTracksJson) as Track[];
+			const tracksNeedingDates = cachedTracks
+				.map((track) => ({
+					track,
+					primaryArtist: track.artists?.[0] || null
+				}))
+				.filter(({ track, primaryArtist }) => !track.firstReleaseDate && !!primaryArtist && !!track.name);
+
+			let hydratedCount = 0;
+			if (tracksNeedingDates.length > 0) {
+				const cachedDates = await getCachedReleaseDatesBatch(
+					tracksNeedingDates.map(({ track, primaryArtist }) => ({
+						trackName: track.name,
+						artistName: primaryArtist as string
+					}))
+				);
+
+				for (const { track, primaryArtist } of tracksNeedingDates) {
+					const key = buildReleaseDateCacheKey(track.name, primaryArtist as string);
+					const cachedDate = cachedDates.get(key) || undefined;
+					if (cachedDate) {
+						track.firstReleaseDate = cachedDate;
+						hydratedCount += 1;
+					}
+				}
+			}
 			updateProgress(
 				'completed',
 				cachedTracks.length,
 				cachedTracks.length,
 				`Loaded ${cachedTracks.length} tracks from cache`
 			);
+
+			if (hydratedCount > 0) {
+				await cachePlaylist(playlistUrl, JSON.stringify(cachedTracks));
+				console.log(
+					`[processPlaylist] Updated cached playlist with ${hydratedCount} hydrated release dates`
+				);
+			}
 
 			// Check if we should trigger background refresh
 			const now = Date.now();
@@ -208,9 +286,10 @@ export async function processPlaylist(
 	}
 
 	console.log(`[processPlaylist] Fetched ${spotifyTracks.length} tracks from Spotify`);
+	const releaseDateCacheMap = await buildReleaseDateCacheMap(spotifyTracks);
 	
 	// Queue tracks for MusicBrainz lookup
-	queueTracksForMusicBrainz(spotifyTracks);
+	queueTracksForMusicBrainz(spotifyTracks, releaseDateCacheMap);
 
 	// Limit playlist processing to 100 random tracks if larger
 	let tracksToProcess = spotifyTracks;
@@ -238,7 +317,11 @@ export async function processPlaylist(
 	const tracks: Track[] = [];
 
 	// Process tracks with a timeout for YouTube searches
-	const processTrack = async (spotifyTrack: SpotifyTrack, index: number): Promise<Track> => {
+	const processTrack = async (
+		spotifyTrack: SpotifyTrack,
+		index: number,
+		releaseDates: Map<string, string | null>
+	): Promise<Track> => {
 		console.log(
 			`[processTrack] Raw Spotify track data for track ${index + 1}:`,
 			JSON.stringify(spotifyTrack, null, 2)
@@ -408,6 +491,17 @@ export async function processPlaylist(
 			youtubeUrl,
 			coverImage
 		};
+
+		const primaryArtist = artists[0];
+		if (trackName && primaryArtist) {
+			const cacheKey = buildReleaseDateCacheKey(trackName, primaryArtist);
+			if (releaseDates.has(cacheKey)) {
+				const cachedDate = releaseDates.get(cacheKey) || undefined;
+				if (cachedDate) {
+					trackResult.firstReleaseDate = cachedDate;
+				}
+			}
+		}
 		console.log(
 			`[processTrack] Completed track ${index + 1}, status: ${status}, audioUrl: ${audioUrl || 'none'}`
 		);
@@ -425,7 +519,7 @@ export async function processPlaylist(
 			`[processPlaylist] Processing batch starting at index ${i}, batch size: ${batch.length}`
 		);
 		const batchResults = await Promise.all(
-			batch.map((track, batchIndex) => processTrack(track, i + batchIndex))
+			batch.map((track, batchIndex) => processTrack(track, i + batchIndex, releaseDateCacheMap))
 		);
 		tracks.push(...batchResults);
 		const processed = Math.min(i + batchSize, tracksToProcess.length);
