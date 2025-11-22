@@ -27,9 +27,11 @@
 	let progressPromise = $state<ReturnType<typeof getPlaylistProgress> | null>(null);
 	let latestResult = $state<{ success: boolean; message: string; error?: string } | null>(null);
 	let progressError = $state<string | null>(null);
+	let progressFetchError = $state<string | null>(null);
 	let progressTimer: ReturnType<typeof setTimeout> | null = null;
 	let progressRetryCount = $state(0);
 	let mounted = true;
+	let isSubmitting = $state(false);
 
 	function clearProgressTimer() {
 		if (progressTimer) {
@@ -54,7 +56,7 @@
 				return result;
 			})
 			.catch((error) => {
-				if (!mounted) throw error;
+				if (!mounted) return null;
 				progressRetryCount += 1;
 				const errorMessage =
 					error && typeof error === 'object' && 'message' in error
@@ -66,7 +68,12 @@
 						message: 'Failed to fetch progress',
 						error: errorMessage
 					};
+					progressFetchError = errorMessage;
 					clearProgressTimer();
+					// Re-throw to trigger the outer catch UI when mounted
+					if (mounted) {
+						return Promise.reject(error);
+					}
 				}
 				return null;
 			})
@@ -98,17 +105,19 @@
 	const canNavigateToGame = $derived(
 		meetsRecommendedThreshold || (allowPartialStart && canUsePartialStart)
 	);
-	const isProcessing = $derived(Boolean(jobState && latestResult === null));
+	const isProcessing = $derived(isSubmitting || Boolean(jobState && latestResult === null));
 
 	function beginPlaylistProcessing() {
 		const trimmed = playlistUrl.trim();
 		if (!trimmed || isProcessing) return;
+		isSubmitting = true;
 		const newJobId = createClientJobId();
 		jobState = { jobId: newJobId, playlistUrl: trimmed };
 		tracks = null;
 		showPlayerCountSelection = false;
 		startWarning = null;
 		progressError = null;
+		progressFetchError = null;
 		latestResult = null;
 		progressRetryCount = 0;
 		clearProgressTimer();
@@ -119,6 +128,7 @@
 			.then((result) => {
 				if (!mounted) return result;
 				clearProgressTimer();
+				isSubmitting = false;
 				if (result.success) {
 					tracks = result.tracks;
 					showPlayerCountSelection = true;
@@ -137,8 +147,9 @@
 				return result;
 			})
 			.catch((error) => {
-				if (!mounted) throw error;
+				if (!mounted) return;
 				clearProgressTimer();
+				isSubmitting = false;
 				const message =
 					error && typeof error === 'object' && 'message' in error
 						? String((error as { message?: unknown }).message ?? 'Unknown error')
