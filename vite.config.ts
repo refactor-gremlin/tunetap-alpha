@@ -5,18 +5,24 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-	plugins: [sentrySvelteKit({
-        sourceMapsUploadOptions: {
-            org: "jens-5f",
-            project: "javascript-sveltekit"
-        }
-    }), tailwindcss(), sveltekit(), devtoolsJson()],
+	plugins: [
+		sentrySvelteKit({
+			sourceMapsUploadOptions: {
+				org: 'jens-5f',
+				project: 'javascript-sveltekit'
+			}
+		}),
+		tailwindcss(),
+		sveltekit(),
+		devtoolsJson()
+	],
 	server: {
 		watch: {
 			ignored: ['**/prisma/**']
 		}
 	},
 	ssr: {
+		external: ['@prisma/client', '.prisma/client'],
 		noExternal: []
 	}
 });
