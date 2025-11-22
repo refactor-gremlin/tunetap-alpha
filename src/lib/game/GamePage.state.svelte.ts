@@ -32,6 +32,9 @@ export class GamePageState {
 
 	// Game Engine
 	gameEngine = $state<TuneTapGame | null>(null);
+	playableTracks = $derived(
+		this.tracks.filter((t) => t.firstReleaseDate && t.audioUrl && t.status === 'found')
+	);
 
 	// UI state
 	showReleaseDates = $state(false);
@@ -312,10 +315,6 @@ export class GamePageState {
 		this.releaseDatePromises = new Map(promises);
 		this.releaseDates = dates;
 		this.ensurePlayableTrackRefreshLoop();
-	}
-
-	get playableTracks() {
-		return this.tracks.filter((t) => t.firstReleaseDate && t.audioUrl && t.status === 'found');
 	}
 
 	initializeGame() {
