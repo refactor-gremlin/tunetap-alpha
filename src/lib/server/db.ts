@@ -1,4 +1,9 @@
-import { PrismaClient } from '@prisma/client';
+import { createRequire } from 'node:module';
+
+// Using createRequire keeps Prisma's CommonJS client in a native CJS context so
+// it isn't bundled into SvelteKit's ESM output (which breaks __dirname usage).
+const require = createRequire(import.meta.url);
+const { PrismaClient } = require('@prisma/client');
 
 // Singleton Prisma client instance
 const prisma = new PrismaClient();
