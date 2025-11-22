@@ -276,6 +276,20 @@ export class TuneTapGame {
 		this.gameStatus = 'gameEnd';
 	}
 
+	addPlayableTracks(tracks: Track[]) {
+		const eligibleTracks = tracks.filter((track) => this.isTrackPlayable(track) && !this.isTrackAlreadyUsed(track.id));
+		if (eligibleTracks.length === 0) {
+			return;
+		}
+
+		this.availableTracks = [...this.availableTracks, ...eligibleTracks];
+		this.initialTurnCount += eligibleTracks.length;
+
+		if (!this.currentTrack && this.availableTracks.length > 0) {
+			this.selectRandomTrack();
+		}
+	}
+
 	// Build timeline items (cards and gaps), grouping tracks by year
 	buildTimelineItems(currentPlayer: Player | undefined): Array<{
 		type: 'card' | 'gap';
@@ -381,5 +395,19 @@ export class TuneTapGame {
 		}
 
 		return items;
+	}
+
+	private isTrackPlayable(track: Track) {
+		return Boolean(track.firstReleaseDate && track.audioUrl && track.status === 'found');
+	}
+
+	private isTrackAlreadyUsed(trackId: string) {
+		if (this.currentTrack?.id === trackId) {
+			return true;
+		}
+		if (this.availableTracks.some((track) => track.id === trackId)) {
+			return true;
+		}
+		return this.players.some((player) => player.timeline.some((track) => track.id === trackId));
 	}
 }

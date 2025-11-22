@@ -85,3 +85,46 @@ export const getCachedReleaseDatesBatchQuery = query(
 		}
 	}
 );
+
+export const refreshPlayableTracks = query(
+	z.object({
+		tracks: z.array(
+			z.object({
+				id: z.string(),
+				trackName: z.string(),
+				artistName: z.string()
+			})
+		)
+	}),
+	async ({ tracks }) => {
+		console.log(`[MusicBrainz Remote] Refreshing playable status for ${tracks.length} tracks`);
+		if (tracks.length === 0) {
+			return { releaseDates: {}, readyTrackIds: [], playableCount: 0 };
+		}
+
+		try {
+			const cacheMap = await getCachedReleaseDatesBatch(
+				tracks.map(({ trackName, artistName }) => ({ trackName, artistName }))
+			);
+
+			const releaseDates: Record<string, string> = {};
+			for (const track of tracks) {
+				const key = `${track.trackName}|${track.artistName}`;
+				const cachedDate = cacheMap.get(key) ?? null;
+				if (cachedDate) {
+					releaseDates[track.id] = cachedDate;
+				}
+			}
+
+			const readyTrackIds = Object.keys(releaseDates);
+			return {
+				releaseDates,
+				readyTrackIds,
+				playableCount: readyTrackIds.length
+			};
+		} catch (error) {
+			console.error(`[MusicBrainz Remote] Error refreshing playable tracks:`, error);
+			return { releaseDates: {}, readyTrackIds: [], playableCount: 0 };
+		}
+	}
+);

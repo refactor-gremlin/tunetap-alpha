@@ -5,7 +5,8 @@ import {
 	fetchFirstReleaseDate,
 	getQueueSize as getQueueSizeRemote,
 	getCachedReleaseDatesBatchQuery,
-	ensureQueueBatch
+	ensureQueueBatch,
+	refreshPlayableTracks
 } from '../../routes/game/musicbrainz.remote';
 import { untrack, tick } from 'svelte';
 import { useInterval, useEventListener } from 'runed';
@@ -56,6 +57,8 @@ export class GamePageState {
 	// Timeline Navigation State
 	canScrollLeft = $state(false);
 	canScrollRight = $state(false);
+
+	private playableTrackRefreshInterval: ReturnType<typeof useInterval> | null = null;
 
 	constructor() {
 		useInterval(1000, {
@@ -122,6 +125,11 @@ export class GamePageState {
 				resizeObserver.disconnect();
 				window.removeEventListener('resize', updateNeedleOffset);
 			};
+		});
+
+		this.playableTrackRefreshInterval = useInterval(5000, {
+			immediate: false,
+			callback: () => this.refreshPlayableTrackAvailability()
 		});
 	}
 
@@ -200,7 +208,7 @@ export class GamePageState {
 						const cachedDate = cachedDates[key];
 						if (cachedDate) {
 							dates.set(index, cachedDate);
-							this.tracks[index].firstReleaseDate = cachedDate;
+							this.applyTrackReleaseDate(index, cachedDate);
 						}
 					}
 					this.releaseDates = new Map(dates);
@@ -243,7 +251,7 @@ export class GamePageState {
 				untrack(() => {
 					dates.set(index, date);
 					this.releaseDates = new Map(dates);
-					if (date) this.tracks[index].firstReleaseDate = date;
+					if (date) this.applyTrackReleaseDate(index, date);
 				});
 				return date;
 			});
@@ -287,7 +295,7 @@ export class GamePageState {
 							const date = newCachedDates[key];
 							if (date) {
 								dates.set(index, date);
-								this.tracks[index].firstReleaseDate = date;
+								this.applyTrackReleaseDate(index, date);
 								foundNew = true;
 							}
 						}
@@ -303,6 +311,7 @@ export class GamePageState {
 
 		this.releaseDatePromises = new Map(promises);
 		this.releaseDates = dates;
+		this.ensurePlayableTrackRefreshLoop();
 	}
 
 	get playableTracks() {
@@ -325,6 +334,92 @@ export class GamePageState {
 			this.isPlaying = true;
 			this.isPaused = false;
 		}).catch(error => console.error('[Game] Error playing audio:', error));
+	}
+
+	private async refreshPlayableTrackAvailability() {
+		if (this.tracks.length === 0) {
+			this.playableTrackRefreshInterval?.pause();
+			return;
+		}
+
+		const pendingTracks = this.tracks
+			.map((track, index) => ({ track, index }))
+			.filter(({ track }) => this.trackNeedsReleaseDate(track));
+
+		if (pendingTracks.length === 0) {
+			this.playableTrackRefreshInterval?.pause();
+			return;
+		}
+
+		const payload = pendingTracks.map(({ track }) => ({
+			id: track.id,
+			trackName: track.name,
+			artistName: track.artists[0]
+		}));
+
+		try {
+			const result = await refreshPlayableTracks({ tracks: payload });
+			const newlyPlayable: Track[] = [];
+
+			for (const { track, index } of pendingTracks) {
+				const releaseDate = result.releaseDates?.[track.id];
+				if (releaseDate) {
+					const updated = this.applyTrackReleaseDate(index, releaseDate);
+					if (updated) {
+						const updatedTrack = this.tracks[index];
+						if (updatedTrack?.audioUrl && updatedTrack.status === 'found') {
+							newlyPlayable.push(updatedTrack);
+						}
+					}
+				}
+			}
+
+			if (newlyPlayable.length > 0 && this.gameEngine) {
+				this.gameEngine.addPlayableTracks(newlyPlayable);
+			}
+
+			const stillPending = this.tracks.some((track) => this.trackNeedsReleaseDate(track));
+			if (!stillPending) {
+				this.playableTrackRefreshInterval?.pause();
+			}
+		} catch (error) {
+			console.error('[Game] Error refreshing playable tracks:', error);
+		}
+	}
+
+	private ensurePlayableTrackRefreshLoop() {
+		const interval = this.playableTrackRefreshInterval;
+		if (!interval) return;
+		const needsRefresh = this.tracks.some((track) => this.trackNeedsReleaseDate(track));
+		if (needsRefresh) {
+			interval.resume();
+		} else {
+			interval.pause();
+		}
+	}
+
+	private trackNeedsReleaseDate(track: Track) {
+		return (
+			track.status === 'found' &&
+			!!track.audioUrl &&
+			!track.firstReleaseDate &&
+			track.artists.length > 0
+		);
+	}
+
+	private applyTrackReleaseDate(index: number, releaseDate: string | undefined) {
+		if (!releaseDate) return false;
+		const track = this.tracks[index];
+		if (!track || track.firstReleaseDate === releaseDate) {
+			return false;
+		}
+		const updatedTracks = [...this.tracks];
+		updatedTracks[index] = { ...track, firstReleaseDate: releaseDate };
+		this.tracks = updatedTracks;
+		const updatedMap = new Map(this.releaseDates);
+		updatedMap.set(index, releaseDate);
+		this.releaseDates = updatedMap;
+		return true;
 	}
 
 	stopTrack() {

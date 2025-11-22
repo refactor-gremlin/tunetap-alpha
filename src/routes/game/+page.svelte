@@ -77,6 +77,7 @@ import { Button } from '$lib/components/shadncn-ui/button/index.js';
 	const players = $derived(pageState.gameEngine?.players ?? []);
 	const currentPlayerIndex = $derived(pageState.gameEngine?.currentPlayerIndex ?? 0);
 	const turnNumber = $derived(pageState.gameEngine?.turnNumber ?? 1);
+	const playableTracksCount = $derived(pageState.playableTracks.length);
 
 	const timelineItems = $derived(
 		pageState.gameEngine
@@ -101,7 +102,7 @@ import { Button } from '$lib/components/shadncn-ui/button/index.js';
 	<div class="setup-container">
 		<ActiveView.PlayerSetup
 			playerNames={pageState.playerNames}
-			playableTracksCount={pageState.playableTracks.length}
+			playableTracksCount={playableTracksCount}
 			totalTracksCount={pageState.tracks.length}
 			onStartGame={() => pageState.initializeGame()}
 		/>
