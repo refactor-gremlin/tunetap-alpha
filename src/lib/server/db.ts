@@ -79,10 +79,12 @@ export async function getCachedReleaseDatesBatch(
 			foundMap.set(key, entry.releaseDate);
 		}
 
-		// Populate result map - include all tracks, mark missing ones as null
+		// Populate result map - only include tracks actually found in cache
 		for (const { trackName, artistName } of tracks) {
 			const key = `${trackName}|${artistName}`;
-			result.set(key, foundMap.get(key) ?? null);
+			if (foundMap.has(key)) {
+				result.set(key, foundMap.get(key) ?? null);
+			}
 		}
 
 		console.log(
@@ -132,5 +134,144 @@ export async function cacheReleaseDate(
 	} catch (error) {
 		console.error(`[DB Cache] Error caching release date:`, error);
 		// Don't throw - caching failures shouldn't break the flow
+	}
+}
+
+/**
+ * Get cached playlist from database
+ * @param url - The Spotify playlist URL
+ * @returns The cached tracks JSON string or null if not found
+ */
+export async function getCachedPlaylist(url: string): Promise<string | null> {
+	try {
+		const cached = await prisma.spotifyPlaylistCache.findUnique({
+			where: { id: url },
+			select: { tracksJson: true }
+		});
+
+		if (cached) {
+			console.log(`[DB Cache] Found cached playlist for "${url}"`);
+			return cached.tracksJson;
+		}
+		return null;
+	} catch (error) {
+		console.error(`[DB Cache] Error getting cached playlist:`, error);
+		return null;
+	}
+}
+
+/**
+ * Cache a playlist in the database
+ * @param url - The Spotify playlist URL
+ * @param tracksJson - The JSON string of tracks
+ */
+export async function cachePlaylist(url: string, tracksJson: string): Promise<void> {
+	try {
+		await prisma.spotifyPlaylistCache.upsert({
+			where: { id: url },
+			update: {
+				tracksJson,
+				updatedAt: new Date()
+			},
+			create: {
+				id: url,
+				tracksJson
+			}
+		});
+		console.log(`[DB Cache] Cached playlist for "${url}"`);
+	} catch (error) {
+		console.error(`[DB Cache] Error caching playlist:`, error);
+	}
+}
+
+/**
+ * Get cached audio source from database
+ * @param trackName - The name of the track
+ * @param artistName - The name of the artist
+ * @returns The cached audio source data or null if not found
+ */
+export async function getCachedAudioSource(
+	trackName: string,
+	artistName: string
+): Promise<{
+	audioUrl: string | null;
+	spotifyPreviewUrl: string | null;
+	youtubeUrl: string | null;
+	coverImage: string | null;
+	status: string;
+} | null> {
+	try {
+		const cached = await prisma.audioSourceCache.findUnique({
+			where: {
+				trackName_artistName: {
+					trackName,
+					artistName
+				}
+			}
+		});
+
+		if (cached) {
+			console.log(
+				`[DB Cache] Found cached audio source for "${trackName}" by "${artistName}": ${cached.status}`
+			);
+			return {
+				audioUrl: cached.audioUrl,
+				spotifyPreviewUrl: cached.spotifyPreviewUrl,
+				youtubeUrl: cached.youtubeUrl,
+				coverImage: cached.coverImage,
+				status: cached.status
+			};
+		}
+		return null;
+	} catch (error) {
+		console.error(`[DB Cache] Error getting cached audio source:`, error);
+		return null;
+	}
+}
+
+/**
+ * Cache audio source in the database
+ * @param data - The audio source data
+ */
+export async function cacheAudioSource(data: {
+	trackName: string;
+	artistName: string;
+	audioUrl: string | null;
+	spotifyPreviewUrl: string | null;
+	youtubeUrl: string | null;
+	coverImage: string | null;
+	status: string;
+}): Promise<void> {
+	try {
+		await prisma.audioSourceCache.upsert({
+			where: {
+				trackName_artistName: {
+					trackName: data.trackName,
+					artistName: data.artistName
+				}
+			},
+			update: {
+				audioUrl: data.audioUrl,
+				spotifyPreviewUrl: data.spotifyPreviewUrl,
+				youtubeUrl: data.youtubeUrl,
+				coverImage: data.coverImage,
+				status: data.status,
+				updatedAt: new Date()
+			},
+			create: {
+				trackName: data.trackName,
+				artistName: data.artistName,
+				audioUrl: data.audioUrl,
+				spotifyPreviewUrl: data.spotifyPreviewUrl,
+				youtubeUrl: data.youtubeUrl,
+				coverImage: data.coverImage,
+				status: data.status
+			}
+		});
+		console.log(
+			`[DB Cache] Cached audio source for "${data.trackName}" by "${data.artistName}": ${data.status}`
+		);
+	} catch (error) {
+		console.error(`[DB Cache] Error caching audio source:`, error);
 	}
 }

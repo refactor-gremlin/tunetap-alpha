@@ -2,12 +2,17 @@ import { command, query } from '$app/server';
 import { z } from 'zod';
 import { processPlaylist, getProgress } from '$lib/server/playlist.server';
 
-export const getPlaylistProgress = query(async () => {
-	console.log('[getPlaylistProgress] Query called');
-	const progress = getProgress();
-	console.log('[getPlaylistProgress] Returning progress:', progress);
-	return progress;
-});
+export const getPlaylistProgress = query(
+	z.object({
+		playlistUrl: z.string().url('Please provide the playlist URL being processed')
+	}),
+	async ({ playlistUrl }) => {
+		console.log('[getPlaylistProgress] Query called for URL:', playlistUrl);
+		const progress = getProgress(playlistUrl);
+		console.log('[getPlaylistProgress] Returning progress:', progress);
+		return progress;
+	}
+);
 
 export const submitPlaylist = command(
 	z.object({

@@ -29,7 +29,10 @@
 		immediate: false,
 		callback: async () => {
 			try {
-				const progress = await getPlaylistProgress();
+				if (!playlistUrl.trim()) {
+					return;
+				}
+				const progress = await getPlaylistProgress({ playlistUrl });
 				if (progress) {
 					// Add new message if it's different from the last one
 					if (
@@ -90,11 +93,12 @@
 	}
 
 	function startGame() {
-		if (tracks && playerCount >= 2 && playerCount <= 4) {
+		const clampedPlayerCount = Math.min(6, Math.max(2, playerCount));
+		if (tracks && clampedPlayerCount >= 2 && clampedPlayerCount <= 6) {
 			// Store tracks in sessionStorage (can't pass complex objects via navigation state)
 			try {
 				sessionStorage.setItem('tunetap_tracks', JSON.stringify(tracks));
-				sessionStorage.setItem('tunetap_playerCount', playerCount.toString());
+				sessionStorage.setItem('tunetap_playerCount', clampedPlayerCount.toString());
 				sessionStorage.setItem('tunetap_showSongName', showSongName.toString());
 				sessionStorage.setItem('tunetap_showArtistName', showArtistName.toString());
 				// Navigate to game page
@@ -105,7 +109,7 @@
 				goto('/game', {
 					state: {
 						tracksData: JSON.stringify(tracks),
-						playerCount,
+						playerCount: clampedPlayerCount,
 						showSongName,
 						showArtistName
 					}
@@ -177,9 +181,9 @@
 			</Card.Header>
 			<Card.Content>
 				<div class="player-count-selection">
-					<p class="instruction">Choose how many players will play (2-4 players)</p>
+					<p class="instruction">Local pass-and-play on one device (2-6 players)</p>
 					<div class="player-count-buttons">
-						{#each [2, 3, 4] as count}
+						{#each [2, 3, 4, 5, 6] as count}
 							<Button
 								variant={playerCount === count ? 'default' : 'outline'}
 								onclick={() => (playerCount = count)}
@@ -287,6 +291,7 @@
 		gap: 1rem;
 		width: 100%;
 		justify-content: center;
+		flex-wrap: wrap;
 	}
 
 	.display-options {

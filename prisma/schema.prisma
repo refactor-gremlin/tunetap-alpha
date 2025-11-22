@@ -23,3 +23,27 @@ model ReleaseDateCache {
   @@index([trackName])
   @@index([artistName])
 }
+
+model SpotifyPlaylistCache {
+  id          String    @id // Playlist URL
+  tracksJson  String    // Serialized JSON of the tracks
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model AudioSourceCache {
+  id                Int      @id @default(autoincrement())
+  trackName         String
+  artistName        String
+  audioUrl          String?
+  spotifyPreviewUrl String?
+  youtubeUrl        String?
+  coverImage        String?
+  status            String   // 'found' or 'missing'
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([trackName, artistName])
+  @@index([trackName])
+  @@index([artistName])
+}

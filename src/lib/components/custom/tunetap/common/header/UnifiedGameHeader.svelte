@@ -41,6 +41,7 @@
 			<div class="player-info">
 				<div class="turn-label">It's</div>
 				<div class="player-name">{currentPlayer.name}'s Turn</div>
+				<div class="turn-hint">Pass the device to continue</div>
 				{#if turnNumber !== undefined && totalTurns !== undefined}
 					<div class="turn-count">Turn {turnNumber} of {totalTurns}</div>
 				{/if}
@@ -141,6 +142,11 @@
 		line-height: 1.2;
 	}
 
+	.turn-hint {
+		font-size: 0.75rem;
+		opacity: 0.9;
+	}
+
 	.turn-count {
 		font-size: 0.875rem;
 		opacity: 0.8;
@@ -182,6 +188,9 @@
 		gap: 0.75rem;
 		flex-wrap: wrap;
 		align-items: center;
+		width: 100%;
+		overflow-x: auto;
+		padding-bottom: 0.25rem;
 	}
 
 	.player-badge {

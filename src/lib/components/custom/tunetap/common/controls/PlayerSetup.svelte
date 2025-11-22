@@ -27,19 +27,27 @@
 	let estimatedTimeRemaining = $state(0);
 	let timeRemainingString = $state('');
 
-	// Calculate if we can start the game (need at least 10 playable tracks or 80% of total, or partial if allowed)
+	// Start condition: Need at least 10 playable tracks.
+	// Partial start is allowed if we have at least 5 tracks.
 	const canStartGame = $derived(
-		playableTracksCount >= 10 || 
-		(allowPartialStart && playableTracksCount >= 5) ||
-		(totalTracksCount && playableTracksCount >= Math.max(10, Math.floor(totalTracksCount * 0.8)))
+		playableTracksCount >= 10 || (allowPartialStart && playableTracksCount >= 5)
 	);
+
+	// Check if we are still waiting for the high-priority batch (first 20 tracks)
+	// We consider "urgent loading" active if we have fewer than 20 tracks ready
+	// AND there are still items in the queue.
+	const isUrgentLoading = $derived(playableTracksCount < 20 && queueSize > 0);
 
 	// Calculate loading progress
 	$effect(() => {
 		if (totalTracksCount && totalTracksCount > 0) {
-			tracksWithReleaseDates = totalTracksCount - queueSize;
+			// Use playableTracksCount as the source of truth for success
+			// This decouples us from queueSize for the "progress" bar
+			tracksWithReleaseDates = playableTracksCount;
 			progressPercentage = Math.round((tracksWithReleaseDates / totalTracksCount) * 100);
-			isLoading = queueSize > 0;
+			
+			// Loading state depends on whether we have reached our "urgent" threshold
+			isLoading = isUrgentLoading;
 		} else {
 			isLoading = false;
 		}
@@ -74,8 +82,9 @@
 	</Card.Header>
 	<Card.Content>
 		<div class="setup-content">
+			<p class="local-hint">Single-device local multiplayer. Pass the device between players each turn.</p>
 			<p>Enter names for each player:</p>
-			<div class="player-inputs">
+			<div class="player-inputs" class:multi-column={playerNames.length > 3}>
 				{#each playerNames as name, index}
 					<Input
 						bind:value={playerNames[index]}
@@ -105,6 +114,15 @@
 							{#if queueSize > 0}
 								(~{timeRemainingString} remaining)
 							{/if}
+						</p>
+					</div>
+				{:else if queueSize > 0 && totalTracksCount && tracksWithReleaseDates >= 20}
+					<div class="complete-status">
+						<p class="complete-text">
+							✓ Ready to start ({tracksWithReleaseDates} tracks ready)
+						</p>
+						<p class="queue-info-subtle">
+							Background processing active: {queueSize} tracks in low priority queue.
 						</p>
 					</div>
 				{:else if queueSize === 0 && totalTracksCount && tracksWithReleaseDates < totalTracksCount}
@@ -166,6 +184,7 @@
 						Start Game
 					{/if}
 				</Button>
+				<p class="pass-device-hint">Tap start, then follow on-screen prompts to hand the device to each player.</p>
 			</div>
 		</div>
 	</Card.Content>
@@ -175,6 +194,12 @@
 	.setup-card {
 		max-width: 600px;
 		margin: 2rem auto;
+	}
+
+	.local-hint {
+		margin: 0;
+		font-size: 0.9rem;
+		color: var(--muted-foreground);
 	}
 
 	.setup-content {
@@ -187,6 +212,11 @@
 		display: flex;
 		flex-direction: column;
 		gap: 1rem;
+	}
+
+	.player-inputs.multi-column {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 	}
 
 	.player-input {
@@ -244,6 +274,12 @@
 		font-weight: 500;
 	}
 
+	.queue-info-subtle {
+		margin: 0.25rem 0 0 0;
+		font-size: 0.75rem;
+		color: var(--muted-foreground);
+	}
+
 	.start-section {
 		display: flex;
 		flex-direction: column;
@@ -285,6 +321,13 @@
 
 	.start-button {
 		width: 100%;
+	}
+
+	.pass-device-hint {
+		margin: 0;
+		text-align: center;
+		font-size: 0.85rem;
+		color: var(--muted-foreground);
 	}
 
 	.partial-start-option {

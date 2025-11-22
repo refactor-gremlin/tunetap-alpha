@@ -1,8 +1,11 @@
 import { getCachedReleaseDate, cacheReleaseDate } from './db';
 
+type Priority = 'high' | 'low';
+
 interface QueueItem {
 	trackName: string;
 	artistName: string;
+	priority: Priority;
 	resolve: (value: string | undefined) => void;
 	reject: (error: Error) => void;
 }
@@ -23,7 +26,11 @@ class MusicBrainzQueue {
 		return this.queue.length + (this.isProcessing ? 1 : 0);
 	}
 
-	async enqueue(trackName: string, artistName: string): Promise<string | undefined> {
+	async enqueue(
+		trackName: string,
+		artistName: string,
+		priority: Priority = 'low'
+	): Promise<string | undefined> {
 		// First check cache
 		const cached = await getCachedReleaseDate(trackName, artistName);
 		if (cached !== null) {
@@ -33,8 +40,8 @@ class MusicBrainzQueue {
 
 		// Not in cache, add to queue
 		return new Promise((resolve, reject) => {
-			this.queue.push({ trackName, artistName, resolve, reject });
-			
+			this.queue.push({ trackName, artistName, priority, resolve, reject });
+
 			// Start processing if not already running
 			if (!this.isProcessing) {
 				// Use setTimeout to avoid blocking the current event loop
@@ -51,7 +58,11 @@ class MusicBrainzQueue {
 		this.isProcessing = true;
 
 		while (this.queue.length > 0) {
-			const item = this.queue.shift()!;
+			// Find the next item to process based on priority
+			// Prefer 'high' priority items first, maintaining FIFO within priority groups
+			const highPriorityIndex = this.queue.findIndex((item) => item.priority === 'high');
+			const index = highPriorityIndex !== -1 ? highPriorityIndex : 0;
+			const item = this.queue.splice(index, 1)[0];
 
 			try {
 				// Wait for rate limit
