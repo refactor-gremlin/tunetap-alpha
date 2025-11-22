@@ -1,14 +1,35 @@
 <script lang="ts">
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
+	import { onMount } from 'svelte';
+	import { pwaInfo } from 'virtual:pwa-info';
 	import { ModeWatcher } from 'mode-watcher';
 	import PageContainer from '$lib/components/custom/PageContainer.svelte';
 
 	let { children } = $props();
+	const webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
+
+	onMount(async () => {
+		if (!pwaInfo) {
+			return;
+		}
+
+		const { registerSW } = await import('virtual:pwa-register');
+		registerSW({
+			immediate: true,
+			onRegistered: (registration?: ServiceWorkerRegistration) => {
+				console.log('SW Registered:', registration);
+			},
+			onRegisterError: (error: Error) => {
+				console.error('SW registration error', error);
+			}
+		});
+	});
 </script>
 
 <svelte:head>
 	<link rel="icon" href={favicon} />
+	{@html webManifestLink}
 	{@html `
 		<script>
 			const isBrowser = typeof localStorage !== 'undefined';
