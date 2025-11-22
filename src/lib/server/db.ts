@@ -5,6 +5,21 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { PrismaClient } = require('@prisma/client');
 
+const DEFAULT_DATABASE_URL = 'file:./prisma/dev.db';
+const globalRuntime = globalThis as typeof globalThis & {
+	__tunetapDbWarningLogged?: boolean;
+};
+
+if (!process.env.DATABASE_URL) {
+	if (!globalRuntime.__tunetapDbWarningLogged) {
+		console.warn(
+			`[DB] DATABASE_URL not set. Falling back to local SQLite at ${DEFAULT_DATABASE_URL}`
+		);
+		globalRuntime.__tunetapDbWarningLogged = true;
+	}
+	process.env.DATABASE_URL = DEFAULT_DATABASE_URL;
+}
+
 // Singleton Prisma client instance
 const prisma = new PrismaClient();
 

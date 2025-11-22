@@ -10,8 +10,14 @@ export class TuneTapGame {
 	availableTracks = $state<Track[]>([]);
 	gameStatus = $state<GameStatus>('setup');
 	roundResult = $state<PlacementResult | null>(null);
-	turnNumber = $state(1);
-	totalTurns = $state(0);
+	turnsTaken = $state(0);
+	initialTurnCount = $state(0);
+	turnNumber = $derived(
+		this.initialTurnCount === 0
+			? 0
+			: Math.min(this.turnsTaken + 1, this.initialTurnCount)
+	);
+	totalTurns = $derived(this.initialTurnCount);
 
 	// Derived
 	currentPlayer = $derived(
@@ -52,11 +58,11 @@ export class TuneTapGame {
 			this.availableTracks = this.availableTracks.slice(1);
 		}
 
-		this.totalTurns = this.availableTracks.length;
+		this.initialTurnCount = this.availableTracks.length;
+		this.turnsTaken = 0;
 
 		this.gameStatus = 'playing';
 		this.currentPlayerIndex = 0;
-		this.turnNumber = 1;
 		this.selectRandomTrack();
 	}
 
@@ -251,12 +257,19 @@ export class TuneTapGame {
 	}
 
 	nextTurn() {
-		if (this.gameStatus === 'roundEnd') {
-			this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
-			this.turnNumber++;
-			this.selectRandomTrack();
-			this.gameStatus = 'playing';
+		if (this.gameStatus !== 'roundEnd') {
+			return;
 		}
+
+		if (this.availableTracks.length === 0) {
+			this.endGame();
+			return;
+		}
+
+		this.turnsTaken = Math.min(this.turnsTaken + 1, this.initialTurnCount);
+		this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
+		this.selectRandomTrack();
+		this.gameStatus = 'playing';
 	}
 
 	endGame() {
