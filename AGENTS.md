@@ -352,4 +352,5 @@ const position = calculateTimelinePosition(year, range.minYear, range.maxYear);
 
 ---
 
+After a big plan implementation you should execute "coderabbit review --plain" with a 3 minute timer and it'll find potential bugs in the implementation.
 This guide should help AI agents understand the project structure, patterns, and conventions. For specific implementation details, refer to the actual code files and inline documentation.

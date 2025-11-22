@@ -2,6 +2,7 @@ import { query } from '$app/server';
 import { z } from 'zod';
 import { musicBrainzQueue } from '$lib/server/musicbrainz-queue';
 import { getCachedReleaseDatesBatch } from '$lib/server/db';
+import { buildTrackArtistKey } from '$lib/utils/release-key';
 
 export const fetchFirstReleaseDate = query(
 	z.object({
@@ -109,7 +110,7 @@ export const refreshPlayableTracks = query(
 
 			const releaseDates: Record<string, string> = {};
 			for (const track of tracks) {
-				const key = `${track.trackName}|${track.artistName}`;
+				const key = buildTrackArtistKey(track.trackName, track.artistName);
 				const cachedDate = cacheMap.get(key) ?? null;
 				if (cachedDate) {
 					releaseDates[track.id] = cachedDate;

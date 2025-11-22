@@ -3,6 +3,13 @@
 	import type { Track } from '$lib/types.js';
 	import { Badge } from '$lib/components/shadncn-ui/badge/index.js';
 	import { Button } from '$lib/components/shadncn-ui/button/index.js';
+	import { useInterval } from 'runed';
+
+	type QueueStatus = {
+		pendingCount: number;
+		estimatedTimeRemaining: number;
+		timeRemainingString: string;
+	};
 
 	let {
 		currentPlayer,
@@ -13,7 +20,9 @@
 		currentTrack = null,
 		isPlaying = false,
 		onPlay,
-		onStop
+		onStop,
+		queueStatusFetcher = null,
+		onQueueStatusUpdate
 	}: {
 		currentPlayer: Player;
 		players: Player[];
@@ -24,6 +33,8 @@
 		isPlaying?: boolean;
 		onPlay?: () => void;
 		onStop?: () => void;
+		queueStatusFetcher?: (() => Promise<QueueStatus>) | null;
+		onQueueStatusUpdate?: (status: QueueStatus) => void;
 	} = $props();
 
 	function getStatus(playerIndex: number): 'current' | 'next' | 'waiting' {
@@ -32,6 +43,36 @@
 		if (playerIndex === nextIndex) return 'next';
 		return 'waiting';
 	}
+
+	let queueStatusPromise = $state<Promise<QueueStatus> | null>(null);
+	let isFetchingQueueStatus = $state(false);
+	const triggerQueueStatusFetch = () => {
+		if (!queueStatusFetcher) return;
+		if (isFetchingQueueStatus) return;
+		isFetchingQueueStatus = true;
+		const fetchPromise = queueStatusFetcher().then((status) => {
+			onQueueStatusUpdate?.(status);
+			return status;
+		});
+		queueStatusPromise = fetchPromise.finally(() => {
+			isFetchingQueueStatus = false;
+		});
+	};
+
+	const queueInterval = useInterval(1500, {
+		immediate: false,
+		callback: () => triggerQueueStatusFetch()
+	});
+
+	$effect(() => {
+		if (!queueStatusFetcher) {
+			queueInterval.pause();
+			queueStatusPromise = null;
+			return;
+		}
+		triggerQueueStatusFetch();
+		queueInterval.resume();
+	});
 </script>
 
 <div class="unified-header">
@@ -60,6 +101,25 @@
 						{isPlaying ? '⏸ Pause' : '▶ Play'}
 					</Button>
 					<Button size="sm" variant="outline" onclick={onStop} class="stop-button">⏹ Stop</Button>
+				</div>
+			{/if}
+			{#if queueStatusPromise}
+				<div class="queue-status">
+					<svelte:boundary>
+						{#await queueStatusPromise}
+							<div class="queue-badge">
+								<Badge variant="outline">Queue updating…</Badge>
+							</div>
+					{:then status}
+							<div class="queue-badge">
+								<Badge variant="secondary">Queue: {status.pendingCount}</Badge>
+							</div>
+						{:catch error}
+							<div class="queue-badge">
+								<Badge variant="destructive">Queue error</Badge>
+							</div>
+						{/await}
+					</svelte:boundary>
 				</div>
 			{/if}
 			<div class="scores-section">
@@ -157,6 +217,17 @@
 		align-items: center;
 		gap: 1rem;
 		flex-wrap: wrap;
+	}
+
+	.queue-status {
+		display: flex;
+		align-items: center;
+	}
+
+	.queue-badge {
+		font-size: 0.75rem;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
 	}
 
 	.play-controls {

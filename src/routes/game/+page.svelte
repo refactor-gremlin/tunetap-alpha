@@ -1,22 +1,33 @@
 <script lang="ts">
-	import { page } from '$app/stores';
-	import { goto } from '$app/navigation';
-	import { onMount } from 'svelte';
+import { page } from '$app/stores';
+import { goto } from '$app/navigation';
+import { onMount } from 'svelte';
+	import type { Track } from '$lib/types';
 
 	import { ViewportSizeDetector } from '$lib/hooks/viewport-size.svelte.js';
 	import { GamePageState } from '$lib/game/GamePage.state.svelte.js';
 
-import { Button } from '$lib/components/shadncn-ui/button/index.js';
+	import { Button } from '$lib/components/shadncn-ui/button/index.js';
 	import * as Card from '$lib/components/shadncn-ui/card/index.js';
 
 	// Import common components
 	import Needle from '$lib/components/custom/tunetap/common/needle/Needle.svelte';
-	import TimelineReel from '$lib/components/custom/tunetap/common/timeline/TimelineReel.svelte';
+import TimelineReel from '$lib/components/custom/tunetap/common/timeline/TimelineReel.svelte';
 	import Stage from '$lib/components/custom/tunetap/common/stage/Stage.svelte';
 	import UnifiedGameHeader from '$lib/components/custom/tunetap/common/header/UnifiedGameHeader.svelte';
 	import PlayerSetup from '$lib/components/custom/tunetap/common/controls/PlayerSetup.svelte';
 	import RoundResultModal from '$lib/components/custom/tunetap/common/dialogs/RoundResultModal.svelte';
-	import GameEndScreen from '$lib/components/custom/tunetap/common/dialogs/GameEndScreen.svelte';
+import GameEndScreen from '$lib/components/custom/tunetap/common/dialogs/GameEndScreen.svelte';
+import PlayableRefreshStatus from '$lib/components/custom/tunetap/common/status/PlayableRefreshStatus.svelte';
+import QueueStatusWatcher from '$lib/components/custom/tunetap/common/status/QueueStatusWatcher.svelte';
+import { buildTrackArtistKey } from '$lib/utils/release-key';
+	import {
+		getQueueStatus,
+		fetchFirstReleaseDate,
+		getCachedReleaseDatesBatchQuery,
+		ensureQueueBatch,
+		refreshPlayableTracks
+	} from './musicbrainz.remote';
 
 	// Component view maps
 	const MobileView = {
@@ -58,12 +69,104 @@ import { Button } from '$lib/components/shadncn-ui/button/index.js';
 				: '--stage-gap: 2rem; --stage-padding: 2rem; --vinyl-size: 200px; --vinyl-border-width: 10px; --vinyl-center-size: 40px; --track-title-size: 1.875rem; --track-artist-size: 1.375rem; --track-placeholder-size: 1.5rem; --track-year-size: 1.125rem;'
 	);
 
-	// Create page state
-	const pageState = new GamePageState();
+// Create page state
+const pageState = new GamePageState();
 
-	onMount(() => {
-		pageState.init($page);
+type QueueStatus = {
+	pendingCount: number;
+	estimatedTimeRemaining: number;
+	timeRemainingString: string;
+};
+
+const pendingReleaseEntries = $derived(pageState.getTracksNeedingReleaseDates());
+const pendingRefreshPayload = $derived(
+	pendingReleaseEntries
+		.filter(({ track }) => track.artists.length > 0)
+		.map(({ track }) => ({
+			id: track.id,
+			trackName: track.name,
+			artistName: track.artists[0]
+		}))
+);
+
+let cacheHydrationPromise = $state<ReturnType<typeof getCachedReleaseDatesBatchQuery> | null>(null);
+let hasHydratedCache = false;
+
+function applyReleaseDateAndNotify(trackId: string, date?: string) {
+	if (!date) return;
+	const updated = pageState.applyReleaseDateById(trackId, date);
+	if (!updated) return;
+	const located = pageState.getTrackById(trackId);
+	if (located?.track.audioUrl && located.track.status === 'found' && pageState.gameEngine) {
+		pageState.gameEngine.addPlayableTracks([located.track]);
+	}
+}
+
+function handleSingleReleaseResolved(payload: { trackId: string; date?: string; error?: unknown }) {
+	if (payload.error) {
+		console.warn('Release date fetch failed', payload.trackId, payload.error);
+		return;
+	}
+	applyReleaseDateAndNotify(payload.trackId, payload.date);
+}
+
+function handleReleaseDateBatch(releaseDates: Record<string, string>) {
+	for (const [trackId, date] of Object.entries(releaseDates)) {
+		applyReleaseDateAndNotify(trackId, date);
+	}
+}
+
+function handleQueueStatusUpdate(status: QueueStatus) {
+	pageState.queueSize = status.pendingCount;
+}
+
+function hydrateCache(entries = pendingReleaseEntries) {
+	if (hasHydratedCache || cacheHydrationPromise) return;
+	const withArtists = entries.filter(({ track }) => track.artists.length > 0);
+	if (withArtists.length === 0) return;
+	const keyMap = new Map<string, string>();
+	const payload = withArtists.map(({ track }) => {
+		const key = buildTrackArtistKey(track.name, track.artists[0]);
+		keyMap.set(key, track.id);
+		return { trackName: track.name, artistName: track.artists[0] };
 	});
+	const promise = getCachedReleaseDatesBatchQuery({ tracks: payload });
+	cacheHydrationPromise = promise;
+	promise
+		.then((result) => {
+			for (const [key, date] of Object.entries(result)) {
+				if (!date) continue;
+				const trackId = keyMap.get(key);
+				if (trackId) {
+					applyReleaseDateAndNotify(trackId, date);
+				}
+			}
+			hasHydratedCache = true;
+		})
+		.catch((error) => {
+			console.error('[Game] Error hydrating release cache:', error);
+		})
+		.finally(() => {
+			cacheHydrationPromise = null;
+		});
+}
+
+$effect(() => {
+	if (!pageState.hasInitialized) return;
+	const pending = pendingReleaseEntries;
+	if (pending.length === 0) {
+		hasHydratedCache = false;
+		cacheHydrationPromise = null;
+		return;
+	}
+	if (!hasHydratedCache && !cacheHydrationPromise) {
+		hydrateCache(pending);
+	}
+});
+
+onMount(() => {
+	pageState.init($page);
+});
 
 	// Derived values from game engine
 	const gameStatus = $derived(pageState.gameEngine?.gameStatus ?? 'setup');
@@ -79,11 +182,11 @@ import { Button } from '$lib/components/shadncn-ui/button/index.js';
 	const turnNumber = $derived(pageState.gameEngine?.turnNumber ?? 1);
 	const playableTracksCount = $derived(pageState.playableTracks.length);
 
-	const timelineItems = $derived(
-		pageState.gameEngine
-			? pageState.gameEngine.buildTimelineItems(currentPlayer)
-			: [{ type: 'gap' as const, gapIndex: 0 }]
-	);
+const timelineItems = $derived(
+	pageState.gameEngine
+		? pageState.gameEngine.buildTimelineItems(currentPlayer)
+		: [{ type: 'gap' as const, gapIndex: 0 }]
+);
 </script>
 
 {#if pageState.tracks.length === 0}
@@ -159,6 +262,8 @@ import { Button } from '$lib/components/shadncn-ui/button/index.js';
 					isPlaying={pageState.isPlaying}
 					onPlay={() => pageState.playTrack()}
 					onStop={() => pageState.stopTrack()}
+					queueStatusFetcher={getQueueStatus}
+					onQueueStatusUpdate={handleQueueStatusUpdate}
 				/>
 			</div>
 		{/if}
@@ -187,6 +292,8 @@ import { Button } from '$lib/components/shadncn-ui/button/index.js';
 					showReleaseDates={pageState.showReleaseDates}
 					onScrollLeft={() => pageState.scrollTimelineLeft()}
 					onScrollRight={() => pageState.scrollTimelineRight()}
+					fetchReleaseDate={fetchFirstReleaseDate}
+					onReleaseDateResolved={handleSingleReleaseResolved}
 				/>
 			</div>
 
@@ -218,6 +325,35 @@ import { Button } from '$lib/components/shadncn-ui/button/index.js';
 	{/if}
 {/if}
 
+{#if cacheHydrationPromise}
+	<svelte:boundary>
+		{#await cacheHydrationPromise}
+			<span class="sr-only">Hydrating release cache…</span>
+		{:then}
+			<span class="sr-only">Release cache hydrated.</span>
+		{:catch error}
+		{#if error instanceof Error}
+			<span class="sr-only">Release cache error: {error.message}</span>
+		{:else}
+			<span class="sr-only">Release cache error: {String(error ?? 'Unknown error')}</span>
+		{/if}
+		{/await}
+	</svelte:boundary>
+{/if}
+
+<PlayableRefreshStatus
+	pendingTracks={pendingRefreshPayload}
+	refreshPlayableTracks={refreshPlayableTracks}
+	ensureQueueBatch={ensureQueueBatch}
+	onReleaseBatch={handleReleaseDateBatch}
+/>
+
+<QueueStatusWatcher
+	fetchQueueStatus={getQueueStatus}
+	onUpdate={handleQueueStatusUpdate}
+	active={gameStatus === 'waiting'}
+/>
+
 <style>
 	:global(.no-tracks) {
 		max-width: 600px;
@@ -246,6 +382,18 @@ import { Button } from '$lib/components/shadncn-ui/button/index.js';
 	.waiting-hint {
 		margin: 1rem 0;
 		color: var(--muted-foreground);
+	}
+
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border: 0;
 	}
 
 	:global(body) {

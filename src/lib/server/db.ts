@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module';
+import { buildTrackArtistKey } from '$lib/utils/release-key';
 
 // Using createRequire keeps Prisma's CommonJS client in a native CJS context so
 // it isn't bundled into SvelteKit's ESM output (which breaks __dirname usage).
@@ -63,7 +64,7 @@ export async function getCachedReleaseDate(
 /**
  * Get cached release dates for multiple tracks in a single batch query
  * @param tracks - Array of track objects with trackName and artistName
- * @returns Map keyed by `${trackName}|${artistName}` with release dates (or null if not found)
+ * @returns Map keyed by JSON.stringify([trackName, artistName]) with release dates (or null if not found)
  */
 export async function getCachedReleaseDatesBatch(
 	tracks: Array<{ trackName: string; artistName: string }>
@@ -95,13 +96,13 @@ export async function getCachedReleaseDatesBatch(
 		// Create a map of found cache entries
 		const foundMap = new Map<string, string | null>();
 		for (const entry of cached) {
-			const key = `${entry.trackName}|${entry.artistName}`;
+			const key = buildTrackArtistKey(entry.trackName, entry.artistName);
 			foundMap.set(key, entry.releaseDate);
 		}
 
 		// Populate result map - only include tracks actually found in cache
 		for (const { trackName, artistName } of tracks) {
-			const key = `${trackName}|${artistName}`;
+			const key = buildTrackArtistKey(trackName, artistName);
 			if (foundMap.has(key)) {
 				result.set(key, foundMap.get(key) ?? null);
 			}

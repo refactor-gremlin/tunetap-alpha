@@ -23,7 +23,9 @@
 		showArtistName = false,
 		showReleaseDates = false,
 		onScrollLeft,
-		onScrollRight
+		onScrollRight,
+		fetchReleaseDate = null,
+		onReleaseDateResolved
 	}: {
 		timelineReel?: HTMLDivElement | null;
 		timelineItems: TimelineItem[];
@@ -34,6 +36,12 @@
 		showReleaseDates?: boolean;
 		onScrollLeft: () => void;
 		onScrollRight: () => void;
+		fetchReleaseDate?: ((args: {
+			trackName: string;
+			artistName: string;
+			priority?: 'high' | 'low';
+		}) => Promise<string | undefined>) | null;
+		onReleaseDateResolved?: (payload: { trackId: string; date?: string; error?: unknown }) => void;
 	} = $props();
 </script>
 
@@ -60,7 +68,13 @@
 		{:else}
 			{#each timelineItems as item, i}
 				{#if item.type === 'card' && item.track}
-					<TimelineCard {item} {showSongName} {showArtistName} />
+					<TimelineCard
+						{item}
+						{showSongName}
+						{showArtistName}
+						fetchReleaseDate={fetchReleaseDate}
+						onReleaseDateResolved={onReleaseDateResolved}
+					/>
 				{/if}
 				{#if item.type === 'gap'}
 					<div class="timeline-gap" data-gap-index={item.gapIndex ?? 0}>

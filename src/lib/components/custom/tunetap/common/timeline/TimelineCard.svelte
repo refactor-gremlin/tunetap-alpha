@@ -2,6 +2,7 @@
 	import type { Track } from '$lib/types.js';
 	import * as Dialog from '$lib/components/shadncn-ui/dialog/index.js';
 	import * as Tooltip from '$lib/components/shadncn-ui/tooltip/index.js';
+	import TrackReleaseDateFetcher from './TrackReleaseDateFetcher.svelte';
 
 	type TimelineItem = {
 		type: 'card' | 'gap';
@@ -15,17 +16,28 @@
 	let {
 		item,
 		showSongName = false,
-		showArtistName = false
+		showArtistName = false,
+		fetchReleaseDate = null,
+		onReleaseDateResolved
 	}: {
 		item: TimelineItem;
 		showSongName?: boolean;
 		showArtistName?: boolean;
+		fetchReleaseDate?: ((args: {
+			trackName: string;
+			artistName: string;
+			priority?: 'high' | 'low';
+		}) => Promise<string | undefined>) | null;
+		onReleaseDateResolved?: (payload: { trackId: string; date?: string; error?: unknown }) => void;
 	} = $props();
 
 	let dialogOpen = $state(false);
 const releaseYear = $derived(item.track?.firstReleaseDate?.slice(0, 4) ?? null);
 const overlappingTracks = $derived(item.sameYearTracks ?? []);
 const hasSameYearOverlap = $derived(overlappingTracks.length > 0);
+const needsReleaseDate = $derived(
+	!!item.track && !item.track.firstReleaseDate && !!fetchReleaseDate && item.track.artists.length > 0
+);
 </script>
 
 {#if item.track}
@@ -92,6 +104,14 @@ const hasSameYearOverlap = $derived(overlappingTracks.length > 0);
 					<div class="card-artist">{item.track.artists[0]}</div>
 				{/if}
 			</div>
+		{/if}
+
+		{#if needsReleaseDate}
+			<TrackReleaseDateFetcher
+				track={item.track}
+				fetchReleaseDate={fetchReleaseDate}
+				onResolved={onReleaseDateResolved}
+			/>
 		{/if}
 	</div>
 

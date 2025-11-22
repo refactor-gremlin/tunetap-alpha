@@ -8,6 +8,7 @@ import {
 	getCachedReleaseDatesBatch
 } from '$lib/server/db';
 import { musicBrainzQueue } from '$lib/server/musicbrainz-queue';
+import { buildTrackArtistKey } from '$lib/utils/release-key';
 
 // spotify-url-info is a CommonJS module that exports a function taking fetch
 // Import as default and cast to the correct type
@@ -126,7 +127,7 @@ function getArtistsFromSpotifyTrack(spotifyTrack: SpotifyTrack): string[] {
 }
 
 function buildReleaseDateCacheKey(trackName: string, artistName: string) {
-	return `${trackName}|${artistName}`;
+	return buildTrackArtistKey(trackName, artistName);
 }
 
 async function buildReleaseDateCacheMap(spotifyTracks: SpotifyTrack[]) {

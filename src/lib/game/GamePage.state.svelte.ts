@@ -1,20 +1,11 @@
 import type { Track } from '$lib/types';
 import type { PlacementType } from '$lib/types/tunetap.js';
 import { TuneTapGame } from '$lib/game/TuneTapGame.svelte.js';
-import {
-	fetchFirstReleaseDate,
-	getQueueSize as getQueueSizeRemote,
-	getCachedReleaseDatesBatchQuery,
-	ensureQueueBatch,
-	refreshPlayableTracks
-} from '../../routes/game/musicbrainz.remote';
-import { untrack, tick } from 'svelte';
-import { useInterval, useEventListener } from 'runed';
+import { tick } from 'svelte';
+import { useEventListener } from 'runed';
 import { goto } from '$app/navigation';
 import type { Page } from '@sveltejs/kit';
 
-// Export wrapper functions for queue status to be used in components
-export const getQueueSize = getQueueSizeRemote;
 import { getQueueStatus as getQueueStatusRemote } from '../../routes/game/musicbrainz.remote';
 export const getQueueStatus = getQueueStatusRemote;
 
@@ -27,7 +18,6 @@ export class GamePageState {
 
 	// Initialization and data fetching
 	hasInitialized = $state(false);
-	releaseDatePromises = $state<Map<number, Promise<string | undefined>>>(new Map());
 	releaseDates = $state<Map<number, string | undefined>>(new Map());
 	queueSize = $state(0);
 
@@ -62,33 +52,9 @@ export class GamePageState {
 	canScrollLeft = $state(false);
 	canScrollRight = $state(false);
 
-	private playableTrackRefreshInterval: ReturnType<typeof useInterval> | null = null;
-	private queueSizeInterval: ReturnType<typeof useInterval> | null = null;
-	private backgroundTrackPollInterval: ReturnType<typeof useInterval> | null = null;
-	private backgroundTrackMap = new Map<number, { trackName: string; artistName: string }>();
 	private lastAudioSrc: string | null = null;
 
 	constructor() {
-		this.queueSizeInterval = useInterval(1000, {
-			immediate: false,
-			callback: async () => {
-				try {
-					const size = await getQueueSize();
-					this.queueSize = size;
-				} catch (error) {
-					console.error('[Game] Error fetching queue size:', error);
-				}
-			}
-		});
-
-		$effect(() => {
-			if (!this.queueSizeInterval) return;
-			if (this.tracks.length === 0) {
-				this.queueSizeInterval.pause();
-			} else {
-				this.queueSizeInterval.resume();
-			}
-		});
 
 		useEventListener(
 			() => window,
@@ -145,15 +111,6 @@ export class GamePageState {
 			};
 		});
 
-		this.playableTrackRefreshInterval = useInterval(5000, {
-			immediate: false,
-			callback: () => this.refreshPlayableTrackAvailability()
-		});
-
-		this.backgroundTrackPollInterval = useInterval(3000, {
-			immediate: false,
-			callback: () => this.pollBackgroundTracks()
-		});
 	}
 
 	init(page: Page) {
@@ -209,111 +166,48 @@ export class GamePageState {
 			this.tracks = loadedTracks;
 			this.playerCount = loadedPlayerCount;
 			this.playerNames = Array(this.playerCount).fill('').map((_, i) => `Player ${i + 1}`);
-			this.initializeTrackDates(loadedTracks);
+			this.initializeReleaseMap(loadedTracks);
 		}
 		
 		this.updateScrollState();
 	}
 
-	private async initializeTrackDates(loadedTracks: Track[]) {
-		const promises = new Map<number, Promise<string | undefined>>();
+	private initializeReleaseMap(tracks: Track[]) {
 		const dates = new Map<number, string | undefined>();
-		const tracksToCheck = loadedTracks
-			.map((track, index) => ({ index, track }))
-			.filter(({ track }) => !track.firstReleaseDate && track.artists.length > 0);
-		let cachedDates: Record<string, string | null> = {};
-
-		// 1. Batch check cache for ALL missing tracks
-		if (tracksToCheck.length > 0) {
-			const batchCheckTracks = tracksToCheck.map(({ track }) => ({
-				trackName: track.name,
-				artistName: track.artists[0]
-			}));
-			try {
-				cachedDates = await getCachedReleaseDatesBatchQuery({ tracks: batchCheckTracks });
-				untrack(() => {
-					for (const { index, track } of tracksToCheck) {
-						const key = `${track.name}|${track.artists[0]}`;
-						const cachedDate = cachedDates[key];
-						if (cachedDate) {
-							dates.set(index, cachedDate);
-							this.applyTrackReleaseDate(index, cachedDate);
-						}
-					}
-					this.releaseDates = new Map(dates);
-				});
-			} catch (error) {
-				console.error('[Game] Error in batch cache check:', error);
+		tracks.forEach((track, index) => {
+			if (track.firstReleaseDate) {
+				dates.set(index, track.firstReleaseDate);
 			}
-		}
-
-		loadedTracks.forEach((track, index) => {
-			if (track.firstReleaseDate) dates.set(index, track.firstReleaseDate);
 		});
-
-		// 2. Identify which tracks still need fetching
-		const tracksToFetch = tracksToCheck.filter(({ track }) => {
-			const key = `${track.name}|${track.artists[0]}`;
-			// Only fetch if the key is completely missing from the cache map (undefined).
-			// If it is null, it means we checked before and found nothing, so don't retry.
-			return cachedDates[key] === undefined;
-		});
-
-		// 3. Hybrid Strategy: Urgent vs Background
-		// Urgent: First 20 tracks - fetch immediately with HIGH priority
-		const urgentTracks = tracksToFetch.slice(0, 20);
-		// Background: The rest - queue with LOW priority and poll for results
-		const backgroundTracks = tracksToFetch.slice(20);
-
-		console.log(
-			`[Game] Fetching strategy: ${urgentTracks.length} urgent (High Priority), ${backgroundTracks.length} background (Low Priority)`
-		);
-
-		// Process Urgent Tracks
-		for (const { index, track } of urgentTracks) {
-			const artistName = track.artists[0];
-			const promise = fetchFirstReleaseDate({
-				trackName: track.name,
-				artistName,
-				priority: 'high'
-			}).then((date) => {
-				untrack(() => {
-					dates.set(index, date);
-					this.releaseDates = new Map(dates);
-					if (date) this.applyTrackReleaseDate(index, date);
-				});
-				return date;
-			});
-			promises.set(index, promise);
-		}
-
-		// Process Background Tracks
-		if (backgroundTracks.length > 0) {
-			// Fire-and-forget: Ensure they are in the queue (Low Priority)
-			const batchQueueTracks = backgroundTracks.map(({ track }) => ({
-				trackName: track.name,
-				artistName: track.artists[0]
-			}));
-			ensureQueueBatch({ tracks: batchQueueTracks }).catch((err) =>
-				console.error('[Game] Failed to batch queue background tracks:', err)
-			);
-
-			this.backgroundTrackMap.clear();
-			for (const { index, track } of backgroundTracks) {
-				this.backgroundTrackMap.set(index, {
-					trackName: track.name,
-					artistName: track.artists[0]
-				});
-			}
-			this.backgroundTrackPollInterval?.resume();
-		} else {
-			this.backgroundTrackMap.clear();
-			this.backgroundTrackPollInterval?.pause();
-		}
-
-		this.releaseDatePromises = new Map(promises);
 		this.releaseDates = dates;
-		this.ensurePlayableTrackRefreshLoop();
+	}
+
+	getTracksNeedingReleaseDates() {
+		return this.tracks
+			.map((track, index) => ({ track, index }))
+			.filter(({ track }) => this.trackNeedsReleaseDate(track));
+	}
+
+	trackNeedsReleaseDate(track: Track) {
+		return (
+			track.status === 'found' &&
+			!!track.audioUrl &&
+			!track.firstReleaseDate &&
+			track.artists.length > 0
+		);
+	}
+
+	applyReleaseDateById(trackId: string, releaseDate: string | undefined) {
+		if (!releaseDate) return false;
+		const index = this.tracks.findIndex((track) => track.id === trackId);
+		if (index === -1) return false;
+		return this.applyTrackReleaseDate(index, releaseDate);
+	}
+
+	getTrackById(trackId: string) {
+		const index = this.tracks.findIndex((track) => track.id === trackId);
+		if (index === -1) return null;
+		return { track: this.tracks[index], index };
 	}
 
 	initializeGame() {
@@ -341,116 +235,7 @@ export class GamePageState {
 			.catch((error) => console.error('[Game] Error playing audio:', error));
 	}
 
-	private async refreshPlayableTrackAvailability() {
-		if (this.tracks.length === 0) {
-			this.playableTrackRefreshInterval?.pause();
-			return;
-		}
 
-		const pendingTracks = this.tracks
-			.map((track, index) => ({ track, index }))
-			.filter(({ track }) => this.trackNeedsReleaseDate(track));
-
-		if (pendingTracks.length === 0) {
-			this.playableTrackRefreshInterval?.pause();
-			this.handleNoPendingTracks();
-			return;
-		}
-
-		const payload = pendingTracks.map(({ track }) => ({
-			id: track.id,
-			trackName: track.name,
-			artistName: track.artists[0]
-		}));
-
-		try {
-			const result = await refreshPlayableTracks({ tracks: payload });
-			const newlyPlayable: Track[] = [];
-
-			for (const { track, index } of pendingTracks) {
-				const releaseDate = result.releaseDates?.[track.id];
-				if (releaseDate) {
-					const updated = this.applyTrackReleaseDate(index, releaseDate);
-					if (updated) {
-						const updatedTrack = this.tracks[index];
-						if (updatedTrack?.audioUrl && updatedTrack.status === 'found') {
-							newlyPlayable.push(updatedTrack);
-						}
-					}
-				}
-			}
-
-			if (newlyPlayable.length > 0 && this.gameEngine) {
-				this.gameEngine.addPlayableTracks(newlyPlayable);
-			}
-
-			const stillPending = this.tracks.some((track) => this.trackNeedsReleaseDate(track));
-			if (!stillPending) {
-				this.playableTrackRefreshInterval?.pause();
-				this.handleNoPendingTracks();
-			}
-		} catch (error) {
-			console.error('[Game] Error refreshing playable tracks:', error);
-		}
-	}
-
-	private async pollBackgroundTracks() {
-		if (this.backgroundTrackMap.size === 0) {
-			this.backgroundTrackPollInterval?.pause();
-			return;
-		}
-
-		const pendingEntries = Array.from(this.backgroundTrackMap.entries()).map(([index, meta]) => ({
-			index,
-			trackName: meta.trackName,
-			artistName: meta.artistName
-		}));
-		const batchPayload = pendingEntries.map(({ trackName, artistName }) => ({ trackName, artistName }));
-
-		try {
-			const newCachedDates = await getCachedReleaseDatesBatchQuery({ tracks: batchPayload });
-			for (const { index, trackName, artistName } of pendingEntries) {
-				const key = `${trackName}|${artistName}`;
-				const date = newCachedDates[key];
-				if (date) {
-					this.applyTrackReleaseDate(index, date);
-				}
-			}
-			if (this.backgroundTrackMap.size === 0) {
-				this.backgroundTrackPollInterval?.pause();
-			}
-		} catch (error) {
-			console.error('[Game] Error polling for background tracks:', error);
-		}
-	}
-
-	private ensurePlayableTrackRefreshLoop() {
-		const interval = this.playableTrackRefreshInterval;
-		if (!interval) return;
-		const needsRefresh = this.tracks.some((track) => this.trackNeedsReleaseDate(track));
-		if (needsRefresh || this.gameEngine?.gameStatus === 'waiting') {
-			interval.resume();
-		} else {
-			interval.pause();
-		}
-	}
-
-	private handleNoPendingTracks() {
-		if (!this.gameEngine) return;
-		const stillPending = this.tracks.some((track) => this.trackNeedsReleaseDate(track));
-		if (!stillPending && this.gameEngine.gameStatus === 'waiting' && this.gameEngine.availableTracks.length === 0) {
-			this.gameEngine.endGame();
-		}
-	}
-
-	private trackNeedsReleaseDate(track: Track) {
-		return (
-			track.status === 'found' &&
-			!!track.audioUrl &&
-			!track.firstReleaseDate &&
-			track.artists.length > 0
-		);
-	}
 
 	private applyTrackReleaseDate(index: number, releaseDate: string | undefined) {
 		if (!releaseDate) return false;
@@ -464,10 +249,6 @@ export class GamePageState {
 		const updatedMap = new Map(this.releaseDates);
 		updatedMap.set(index, releaseDate);
 		this.releaseDates = updatedMap;
-		this.backgroundTrackMap.delete(index);
-		if (this.backgroundTrackMap.size === 0) {
-			this.backgroundTrackPollInterval?.pause();
-		}
 		return true;
 	}
 

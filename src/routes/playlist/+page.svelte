@@ -2,7 +2,6 @@
 	import { goto } from '$app/navigation';
 	import { submitPlaylist, getPlaylistProgress } from './data.remote';
 	import type { Track } from '$lib/types';
-	import { useInterval } from 'runed';
 	import { Button } from '$lib/components/shadncn-ui/button/index.js';
 	import { Input } from '$lib/components/shadncn-ui/input/index.js';
 	import { Progress } from '$lib/components/shadncn-ui/progress/index.js';
@@ -10,24 +9,75 @@
 	import { Checkbox } from '$lib/components/shadncn-ui/checkbox/index.js';
 	import PageHeader from '$lib/components/custom/PageHeader.svelte';
 	import { RECOMMENDED_PLAYABLE_TRACKS, MIN_PARTIAL_START_TRACKS } from '$lib/constants/game';
+	import { onDestroy } from 'svelte';
 
 	let playlistUrl = $state('');
 	let tracks = $state<Track[] | null>(null);
-	let loading = $state(false);
-	let progressMessages = $state<string[]>([]);
-	let progressCurrent = $state(0);
-	let progressTotal = $state(0);
-	let progressStatus = $state<string>('');
-	let progressError = $state<string | null>(null);
 	let playerCount = $state(2);
 	let showPlayerCountSelection = $state(false);
 	let showSongName = $state(false);
 	let showArtistName = $state(false);
 	let allowPartialStart = $state(false);
 	let startWarning = $state<string | null>(null);
-	let jobId = $state<string | null>(null);
 
-	let progressMessageElement: HTMLDivElement | null = $state(null);
+	const MAX_PROGRESS_RETRIES = 5;
+
+	let jobState = $state<{ jobId: string; playlistUrl: string } | null>(null);
+	let submitPromise = $state<ReturnType<typeof submitPlaylist> | null>(null);
+	let progressPromise = $state<ReturnType<typeof getPlaylistProgress> | null>(null);
+	let latestResult = $state<{ success: boolean; message: string; error?: string } | null>(null);
+	let progressError = $state<string | null>(null);
+	let progressTimer: ReturnType<typeof setTimeout> | null = null;
+	let progressRetryCount = $state(0);
+	let mounted = true;
+
+	function clearProgressTimer() {
+		if (progressTimer) {
+			clearTimeout(progressTimer);
+			progressTimer = null;
+		}
+	}
+
+	function refreshProgress() {
+		if (!jobState || latestResult) {
+			return;
+		}
+		const remoteQuery = getPlaylistProgress({
+			playlistUrl: jobState.playlistUrl,
+			jobId: jobState.jobId
+		});
+		progressPromise = remoteQuery;
+		remoteQuery
+			.then((result) => {
+				if (!mounted) return result;
+				progressRetryCount = 0;
+				return result;
+			})
+			.catch((error) => {
+				if (!mounted) throw error;
+				progressRetryCount += 1;
+				const errorMessage =
+					error && typeof error === 'object' && 'message' in error
+						? String((error as { message?: unknown }).message ?? 'Unknown error')
+						: String(error ?? 'Unknown error');
+				if (progressRetryCount >= MAX_PROGRESS_RETRIES) {
+					latestResult = {
+						success: false,
+						message: 'Failed to fetch progress',
+						error: errorMessage
+					};
+					clearProgressTimer();
+				}
+				return null;
+			})
+			.finally(() => {
+				if (!mounted) return;
+				clearProgressTimer();
+				if (!latestResult && progressRetryCount < MAX_PROGRESS_RETRIES) {
+					progressTimer = setTimeout(() => refreshProgress(), 500);
+				}
+			});
+	}
 
 	const createClientJobId = () => {
 		if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -48,89 +98,58 @@
 	const canNavigateToGame = $derived(
 		meetsRecommendedThreshold || (allowPartialStart && canUsePartialStart)
 	);
+	const isProcessing = $derived(Boolean(jobState && latestResult === null));
 
-	// Create interval at component level, but don't start it immediately
-	const progressInterval = useInterval(200, {
-		immediate: false,
-		callback: async () => {
-			try {
-				if (!playlistUrl.trim() || !jobId) {
-					return;
-				}
-				const progress = await getPlaylistProgress({ playlistUrl, jobId });
-				if (progress) {
-					if (
-						progressMessages.length === 0 ||
-						progressMessages[progressMessages.length - 1] !== progress.message
-					) {
-						progressMessages = [...progressMessages, progress.message];
-						if (progressMessages.length > 50) {
-							progressMessages = progressMessages.slice(-50);
-						}
-					}
-					progressCurrent = progress.current;
-					progressTotal = progress.total;
-					progressStatus = progress.status;
-					if (progress.status === 'error') {
-						progressError = progress.message;
-						progressInterval.pause();
-						loading = false;
-					}
-				}
-			} catch {
-				// Ignore polling errors
-			}
-		}
-	});
-
-	// Auto-scroll to bottom when new messages arrive
-	$effect(() => {
-		if (progressMessageElement && progressMessages.length > 0) {
-			progressMessageElement.scrollTop = progressMessageElement.scrollHeight;
-		}
-	});
-
-	async function handleSubmit() {
-		if (!playlistUrl.trim()) {
-			return;
-		}
-
-	const newJobId = createClientJobId();
-	jobId = newJobId;
-		loading = true;
-		progressMessages = [`Processing playlist: ${playlistUrl}`];
-		progressCurrent = 0;
-		progressTotal = 0;
-		progressStatus = '';
- 		progressError = null;
+	function beginPlaylistProcessing() {
+		const trimmed = playlistUrl.trim();
+		if (!trimmed || isProcessing) return;
+		const newJobId = createClientJobId();
+		jobState = { jobId: newJobId, playlistUrl: trimmed };
 		tracks = null;
 		showPlayerCountSelection = false;
-		allowPartialStart = false;
 		startWarning = null;
-
-		// Start polling for progress
-		progressInterval.resume();
-
-		try {
-			const result = await submitPlaylist({ playlistUrl, jobId: newJobId });
-			if (result.success) {
-				tracks = result.tracks;
-				// Show player count selection
-				showPlayerCountSelection = true;
-			} else {
-				progressError = result.error ?? 'Failed to process playlist.';
-				progressStatus = 'error';
-				progressMessages = [...progressMessages, `Error: ${progressError}`];
-			}
-		} catch (error) {
-			console.error('Error submitting playlist:', error);
-			const message = (error as Error).message;
-			progressError = message;
-			progressMessages = [...progressMessages, `Error: ${message}`];
-		} finally {
-			loading = false;
-			progressInterval.pause();
-		}
+		progressError = null;
+		latestResult = null;
+		progressRetryCount = 0;
+		clearProgressTimer();
+		const command = submitPlaylist({ playlistUrl: trimmed, jobId: newJobId });
+		submitPromise = command;
+		refreshProgress();
+		command
+			.then((result) => {
+				if (!mounted) return result;
+				clearProgressTimer();
+				if (result.success) {
+					tracks = result.tracks;
+					showPlayerCountSelection = true;
+					latestResult = {
+						success: true,
+						message: `Loaded ${result.tracks.length} tracks`
+					};
+				} else {
+					progressError = result.error ?? 'Failed to process playlist';
+					latestResult = {
+						success: false,
+						message: 'Playlist processing failed',
+						error: progressError ?? undefined
+					};
+				}
+				return result;
+			})
+			.catch((error) => {
+				if (!mounted) throw error;
+				clearProgressTimer();
+				const message =
+					error && typeof error === 'object' && 'message' in error
+						? String((error as { message?: unknown }).message ?? 'Unknown error')
+						: String(error ?? 'Unknown error');
+				progressError = message;
+				latestResult = {
+					success: false,
+					message: 'Playlist processing failed',
+					error: message
+				};
+			});
 	}
 
 	function startGame() {
@@ -143,18 +162,15 @@
 			return;
 		}
 		if (tracks && clampedPlayerCount >= 2 && clampedPlayerCount <= 6) {
-			// Store tracks in sessionStorage (can't pass complex objects via navigation state)
 			try {
 				sessionStorage.setItem('tunetap_tracks', JSON.stringify(tracks));
 				sessionStorage.setItem('tunetap_playerCount', clampedPlayerCount.toString());
 				sessionStorage.setItem('tunetap_showSongName', showSongName.toString());
 				sessionStorage.setItem('tunetap_showArtistName', showArtistName.toString());
 				sessionStorage.setItem('tunetap_allowPartialStart', allowPartialStart.toString());
-				// Navigate to game page
 				goto('/game');
 			} catch (error) {
 				console.error('Error storing tracks:', error);
-				// Fallback: try navigation state with serialized data
 				goto('/game', {
 					state: {
 						tracksData: JSON.stringify(tracks),
@@ -167,6 +183,11 @@
 			}
 		}
 	}
+
+	onDestroy(() => {
+		mounted = false;
+		clearProgressTimer();
+	});
 </script>
 
 <PageHeader title="Enter Your Spotify Playlist" />
@@ -178,51 +199,79 @@
 			type="url"
 			bind:value={playlistUrl}
 			placeholder="https://open.spotify.com/playlist/..."
-			disabled={loading}
+			disabled={isProcessing}
 			onkeydown={(e) => {
 				if (e.key === 'Enter') {
-					handleSubmit();
+					beginPlaylistProcessing();
 				}
 			}}
 		/>
-		<Button onclick={handleSubmit} disabled={loading || !playlistUrl.trim()}>
-			{loading ? 'Loading...' : 'Load Playlist'}
+		<Button onclick={beginPlaylistProcessing} disabled={!playlistUrl.trim() || isProcessing}>
+			{isProcessing ? 'Processing…' : 'Load Playlist'}
 		</Button>
 	</div>
 
-	{#if (loading || progressError) && progressMessages.length > 0}
+	{#if jobState && submitPromise}
 		<Card.Root class="progress-container">
 			<Card.Header>
 				<Card.Title>Processing Playlist</Card.Title>
 			</Card.Header>
 			<Card.Content>
-				<div class="progress-message" bind:this={progressMessageElement}>
-					{#each progressMessages as message}
-						<div class="progress-line">{message}</div>
-					{/each}
-				</div>
-				{#if progressTotal > 0}
-					<div class="progress-bar-container">
-						<Progress value={(progressCurrent / progressTotal) * 100} />
-					</div>
-					<div class="progress-stats">
-						{progressCurrent} / {progressTotal} tracks ({Math.round(
-							(progressCurrent / progressTotal) * 100
-						)}%)
-					</div>
-				{/if}
-				{#if progressError}
-					<div class="progress-error">{progressError}</div>
-				{/if}
+				<svelte:boundary>
+					{#await submitPromise}
+						<div class="progress-message">
+							{#if progressPromise}
+								<svelte:boundary>
+									{#await progressPromise}
+										<p class="progress-line">Awaiting progress…</p>
+									{:then progress}
+										{#if progress}
+											<div class="progress-line">{progress.message}</div>
+											{#if progress.total > 0}
+												<div class="progress-bar-container">
+													<Progress value={(progress.current / progress.total) * 100} />
+												</div>
+												<div class="progress-stats">
+													{progress.current} / {progress.total} tracks ({Math.round(
+														(progress.current / progress.total) * 100
+													)}%)
+												</div>
+											{/if}
+										{:else}
+											<p class="progress-line">Waiting for updates…</p>
+										{/if}
+									{:catch error}
+										<p class="progress-error">{error.message}</p>
+									{/await}
+								</svelte:boundary>
+							{:else}
+								<p class="progress-line">Waiting for progress updates…</p>
+							{/if}
+						</div>
+					{:then result}
+						<p class="progress-summary">
+							{#if result.success}
+								Playlist ready! Found {result.tracks.length} tracks.
+							{:else}
+								Failed to process playlist.
+							{/if}
+						</p>
+					{:catch error}
+						<p class="progress-error">{error.message}</p>
+					{/await}
+				</svelte:boundary>
 			</Card.Content>
 		</Card.Root>
 	{/if}
 
-	{#if tracks && !loading}
+	{#if tracks}
 		<Card.Root class="tracks-preview">
 			<Card.Content>
 				<p>Found {tracks.length} tracks</p>
-				<p>{tracks.filter((t: Track) => t.status === 'found').length} tracks with audio</p>
+				<p>{playableAudioCount} tracks with audio (playable)</p>
+				{#if latestResult?.error}
+					<p class="progress-error">{latestResult.error}</p>
+				{/if}
 			</Card.Content>
 		</Card.Root>
 	{/if}
@@ -279,8 +328,8 @@
 					{#if startWarning}
 						<p class="start-warning">{startWarning}</p>
 					{/if}
-					<Button size="lg" onclick={startGame} class="start-button" disabled={!canNavigateToGame}>
-						{canNavigateToGame ? 'Go to Player Setup' : 'Waiting for tracks...'}
+				<Button size="lg" onclick={startGame} class="start-button" disabled={!canNavigateToGame}>
+					{canNavigateToGame ? 'Go to Player Setup' : 'Waiting for tracks…'}
 					</Button>
 				</div>
 			</Card.Content>
@@ -348,6 +397,13 @@
 		color: var(--destructive);
 		font-weight: 600;
 		text-align: center;
+	}
+
+	.progress-summary {
+		text-align: center;
+		font-size: 0.95rem;
+		color: var(--foreground);
+		margin-bottom: 0;
 	}
 
 	:global(.player-selection) {
