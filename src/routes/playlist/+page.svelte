@@ -17,22 +17,31 @@
 	let progressCurrent = $state(0);
 	let progressTotal = $state(0);
 	let progressStatus = $state<string>('');
+let progressError = $state<string | null>(null);
 	let playerCount = $state(2);
 	let showPlayerCountSelection = $state(false);
 	let showSongName = $state(false);
 	let showArtistName = $state(false);
+let jobId = $state<string | null>(null);
 
 	let progressMessageElement: HTMLDivElement | null = $state(null);
+
+const createClientJobId = () => {
+	if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+		return crypto.randomUUID();
+	}
+	return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+};
 
 	// Create interval at component level, but don't start it immediately
 	const progressInterval = useInterval(200, {
 		immediate: false,
 		callback: async () => {
 			try {
-				if (!playlistUrl.trim()) {
+			if (!playlistUrl.trim() || !jobId) {
 					return;
 				}
-				const progress = await getPlaylistProgress({ playlistUrl });
+			const progress = await getPlaylistProgress({ playlistUrl, jobId });
 				if (progress) {
 					// Add new message if it's different from the last one
 					if (
@@ -48,6 +57,11 @@
 					progressCurrent = progress.current;
 					progressTotal = progress.total;
 					progressStatus = progress.status;
+				if (progress.status === 'error') {
+					progressError = progress.message;
+					progressInterval.pause();
+					loading = false;
+				}
 				}
 			} catch (error) {
 				// Ignore polling errors
@@ -67,25 +81,36 @@
 			return;
 		}
 
+	const newJobId = createClientJobId();
+	jobId = newJobId;
 		loading = true;
 		progressMessages = [`Processing playlist: ${playlistUrl}`];
 		progressCurrent = 0;
 		progressTotal = 0;
 		progressStatus = '';
+	progressError = null;
+	tracks = null;
+	showPlayerCountSelection = false;
 
 		// Start polling for progress
 		progressInterval.resume();
 
 		try {
-			const result = await submitPlaylist({ playlistUrl });
+		const result = await submitPlaylist({ playlistUrl, jobId: newJobId });
 			if (result.success) {
-				tracks = result.tracks;
+			tracks = result.tracks;
 				// Show player count selection
 				showPlayerCountSelection = true;
+		} else {
+			progressError = result.error ?? 'Failed to process playlist.';
+			progressStatus = 'error';
+			progressMessages = [...progressMessages, `Error: ${progressError}`];
 			}
 		} catch (error) {
 			console.error('Error submitting playlist:', error);
-			progressMessages = [...progressMessages, `Error: ${(error as Error).message}`];
+		const message = (error as Error).message;
+		progressError = message;
+		progressMessages = [...progressMessages, `Error: ${message}`];
 		} finally {
 			loading = false;
 			progressInterval.pause();
@@ -140,7 +165,7 @@
 		</Button>
 	</div>
 
-	{#if loading && progressMessages.length > 0}
+	{#if (loading || progressError) && progressMessages.length > 0}
 		<Card.Root class="progress-container">
 			<Card.Header>
 				<Card.Title>Processing Playlist</Card.Title>
@@ -160,6 +185,9 @@
 							(progressCurrent / progressTotal) * 100
 						)}%)
 					</div>
+				{/if}
+				{#if progressError}
+					<div class="progress-error">{progressError}</div>
 				{/if}
 			</Card.Content>
 		</Card.Root>
@@ -268,7 +296,14 @@
 		color: var(--muted-foreground);
 	}
 
-	.player-selection {
+	.progress-error {
+		margin-top: 0.75rem;
+		color: var(--destructive);
+		font-weight: 600;
+		text-align: center;
+	}
+
+	:global(.player-selection) {
 		width: 100%;
 		max-width: 500px;
 	}
@@ -319,7 +354,7 @@
 		color: var(--foreground);
 	}
 
-	.start-button {
+	:global(.start-button) {
 		width: 100%;
 	}
 </style>

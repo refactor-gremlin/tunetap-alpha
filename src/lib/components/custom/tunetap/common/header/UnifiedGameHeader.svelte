@@ -220,7 +220,7 @@
 		white-space: nowrap;
 	}
 
-	.score-badge {
+	:global(.score-badge) {
 		font-weight: bold;
 	}
 

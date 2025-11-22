@@ -48,7 +48,7 @@
 </Card.Root>
 
 <style>
-	.game-end-card {
+	:global(.game-end-card) {
 		max-width: 600px;
 		margin: 2rem auto;
 	}

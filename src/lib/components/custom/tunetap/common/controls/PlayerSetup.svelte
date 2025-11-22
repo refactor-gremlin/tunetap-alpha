@@ -191,7 +191,7 @@
 </Card.Root>
 
 <style>
-	.setup-card {
+	:global(.setup-card) {
 		max-width: 600px;
 		margin: 2rem auto;
 	}
@@ -219,7 +219,7 @@
 		grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 	}
 
-	.player-input {
+	:global(.player-input) {
 		width: 100%;
 	}
 
@@ -252,7 +252,7 @@
 		text-align: center;
 	}
 
-	.progress-bar {
+	:global(.progress-bar) {
 		width: 100%;
 	}
 
@@ -319,7 +319,7 @@
 		font-weight: 500;
 	}
 
-	.start-button {
+	:global(.start-button) {
 		width: 100%;
 	}
 

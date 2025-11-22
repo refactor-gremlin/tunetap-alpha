@@ -57,22 +57,42 @@ const progressStore = new Map<string, ProgressSnapshot>();
 
 const createJobId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
+const buildProgressKey = (playlistUrl: string, jobId: string) => `${playlistUrl}|${jobId}`;
+
 function scheduleProgressCleanup(playlistUrl: string, jobId: string) {
+	const progressKey = buildProgressKey(playlistUrl, jobId);
 	setTimeout(() => {
-		console.log(`[processPlaylist] Cleaning up progress store for URL: ${playlistUrl}`);
-		const snapshot = progressStore.get(playlistUrl);
+		console.log(
+			`[processPlaylist] Cleaning up progress store for URL: ${playlistUrl} (job ${jobId})`
+		);
+		const snapshot = progressStore.get(progressKey);
 		if (snapshot && snapshot.jobId === jobId) {
-			progressStore.delete(playlistUrl);
+			progressStore.delete(progressKey);
 		}
 	}, 60000);
 }
 
-export function getProgress(playlistUrl: string) {
-	if (!playlistUrl) return null;
-	const snapshot = progressStore.get(playlistUrl);
+export function getProgress(playlistUrl: string, jobId: string) {
+	if (!playlistUrl || !jobId) return null;
+	const snapshot = progressStore.get(buildProgressKey(playlistUrl, jobId));
 	if (!snapshot) return null;
 	const { status, current, total, message } = snapshot;
 	return { status, current, total, message };
+}
+
+export function recordProgressError(playlistUrl: string, jobId: string, message: string) {
+	if (!playlistUrl || !jobId) return;
+	const progressKey = buildProgressKey(playlistUrl, jobId);
+	const existing = progressStore.get(progressKey);
+	progressStore.set(progressKey, {
+		status: 'error',
+		current: existing?.current ?? 0,
+		total: existing?.total ?? 0,
+		message,
+		jobId,
+		updatedAt: Date.now()
+	});
+	scheduleProgressCleanup(playlistUrl, jobId);
 }
 
 function getArtistsFromSpotifyTrack(spotifyTrack: SpotifyTrack): string[] {
@@ -143,10 +163,10 @@ function queueTracksForMusicBrainz(
 	spotifyTracks.forEach((track) => {
 		const artists = getArtistsFromSpotifyTrack(track);
 		const trackName = track.name || '';
-		const artistNames = artists.join(', ');
 		const primaryArtist = artists[0];
+		const artistNames = artists.join(', ');
 
-		if (!trackName || !artistNames || !primaryArtist) {
+		if (!trackName || !primaryArtist) {
 			return;
 		}
 
@@ -156,7 +176,7 @@ function queueTracksForMusicBrainz(
 			return;
 		}
 
-		musicBrainzQueue.enqueue(trackName, artistNames, 'low').catch((err) => {
+		musicBrainzQueue.enqueue(trackName, primaryArtist, 'low', artistNames).catch((err) => {
 			console.error(`[Background Queue] Failed to enqueue "${trackName}":`, err);
 		});
 		enqueued += 1;
@@ -183,21 +203,23 @@ async function fetchAndQueueBackground(playlistUrl: string) {
 
 export async function processPlaylist(
 	playlistUrl: string,
+	jobId?: string,
 	onProgress?: (status: string, current: number, total: number, message: string) => void
-): Promise<Track[]> {
+): Promise<{ tracks: Track[]; jobId: string }> {
 	console.log('[processPlaylist] Starting processing for URL:', playlistUrl);
-	const jobId = createJobId();
+	const effectiveJobId = jobId ?? createJobId();
+	const progressKey = buildProgressKey(playlistUrl, effectiveJobId);
 
 	const updateProgress = (status: string, current: number, total: number, message: string) => {
 		console.log(
 			`[processPlaylist] Progress update - Status: ${status}, Current: ${current}/${total}, Message: ${message}`
 		);
-		progressStore.set(playlistUrl, {
+		progressStore.set(progressKey, {
 			status,
 			current,
 			total,
 			message,
-			jobId,
+			jobId: effectiveJobId,
 			updatedAt: Date.now()
 		});
 		if (onProgress) {
@@ -267,8 +289,8 @@ export async function processPlaylist(
 			}
 
 			// Clean up progress after a delay
-			scheduleProgressCleanup(playlistUrl, jobId);
-			return cachedTracks;
+			scheduleProgressCleanup(playlistUrl, effectiveJobId);
+			return { tracks: cachedTracks, jobId: effectiveJobId };
 		} catch (error) {
 			console.error('[processPlaylist] Error parsing cached playlist:', error);
 			// Fallback to normal processing if cache is invalid
@@ -554,8 +576,8 @@ export async function processPlaylist(
 	);
 
 	// Clean up progress after a delay
-	scheduleProgressCleanup(playlistUrl, jobId);
+	scheduleProgressCleanup(playlistUrl, effectiveJobId);
 
 	console.log(`[processPlaylist] Returning ${tracks.length} tracks`);
-	return tracks;
+	return { tracks, jobId: effectiveJobId };
 }

@@ -5,6 +5,7 @@ type Priority = 'high' | 'low';
 interface QueueItem {
 	trackName: string;
 	artistName: string;
+	displayArtistName?: string;
 	priority: Priority;
 	resolve: (value: string | undefined) => void;
 	reject: (error: Error) => void;
@@ -29,7 +30,8 @@ class MusicBrainzQueue {
 	async enqueue(
 		trackName: string,
 		artistName: string,
-		priority: Priority = 'low'
+		priority: Priority = 'low',
+		displayArtistName?: string
 	): Promise<string | undefined> {
 		// First check cache
 		const cached = await getCachedReleaseDate(trackName, artistName);
@@ -40,7 +42,7 @@ class MusicBrainzQueue {
 
 		// Not in cache, add to queue
 		return new Promise((resolve, reject) => {
-			this.queue.push({ trackName, artistName, priority, resolve, reject });
+			this.queue.push({ trackName, artistName, displayArtistName, priority, resolve, reject });
 
 			// Start processing if not already running
 			if (!this.isProcessing) {
@@ -74,8 +76,12 @@ class MusicBrainzQueue {
 					await new Promise((resolve) => setTimeout(resolve, waitTime));
 				}
 
-				// Fetch from MusicBrainz
-				const result = await this.fetchFromMusicBrainz(item.trackName, item.artistName);
+			// Fetch from MusicBrainz
+			const result = await this.fetchFromMusicBrainz(
+				item.trackName,
+				item.artistName,
+				item.displayArtistName
+			);
 				this.lastRequestTime = Date.now();
 
 				// Cache the result (even if null/undefined)
@@ -93,7 +99,8 @@ class MusicBrainzQueue {
 
 	private async fetchFromMusicBrainz(
 		trackName: string,
-		artistName: string
+		artistName: string,
+		logArtistName?: string
 	): Promise<string | undefined> {
 		// Escape quotes in track and artist names for the query
 		const escapedTrackName = trackName.replace(/"/g, '\\"');
@@ -103,7 +110,8 @@ class MusicBrainzQueue {
 		const query = `release:"${escapedTrackName}" AND artist:"${escapedArtistName}"`;
 		const url = `https://musicbrainz.org/ws/2/release-group?query=${encodeURIComponent(query)}&limit=1&fmt=json`;
 
-		console.log(`[MusicBrainz Queue] Fetching: "${trackName}" by "${artistName}"`);
+		const logArtist = logArtistName ?? artistName;
+		console.log(`[MusicBrainz Queue] Fetching: "${trackName}" by "${logArtist}"`);
 		console.log(`[MusicBrainz Queue] Queue size: ${this.queue.length}`);
 
 		try {

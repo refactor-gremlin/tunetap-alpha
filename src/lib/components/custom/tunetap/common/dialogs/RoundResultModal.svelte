@@ -131,11 +131,11 @@
 		}
 	}
 
-	.round-result-modal {
+	:global(.round-result-modal) {
 		max-width: 450px;
 	}
 
-	.fade-in-title {
+	:global(.fade-in-title) {
 		animation: fadeInUp 0.4s ease-out;
 	}
 
@@ -143,22 +143,22 @@
 		animation: fadeInUp 0.4s ease-out 0.15s both;
 	}
 
-	.fade-in-button {
+	:global(.fade-in-button) {
 		animation: fadeInUp 0.4s ease-out 0.3s both;
 	}
 
-	.result-title {
+	:global(.result-title) {
 		font-size: 1.75rem;
 		text-align: center;
 		margin-bottom: 0;
 		font-weight: 600;
 	}
 
-	.result-title.correct {
+	:global(.result-title.correct) {
 		color: rgb(34, 197, 94);
 	}
 
-	.result-title.incorrect {
+	:global(.result-title.incorrect) {
 		color: rgb(239, 68, 68);
 	}
 
@@ -275,7 +275,7 @@
 		margin: 0;
 	}
 
-	.next-button {
+	:global(.next-button) {
 		width: 100%;
 		margin-top: 1rem;
 	}
