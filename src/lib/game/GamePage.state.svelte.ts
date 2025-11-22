@@ -23,6 +23,7 @@ export class GamePageState {
 	tracks = $state<Track[]>([]);
 	playerCount = $state(2);
 	playerNames = $state<string[]>([]);
+	allowPartialStartPreference = $state(false);
 
 	// Initialization and data fetching
 	hasInitialized = $state(false);
@@ -166,16 +167,19 @@ export class GamePageState {
 			const playerCountData = sessionStorage.getItem('tunetap_playerCount');
 			const showSongNameData = sessionStorage.getItem('tunetap_showSongName');
 			const showArtistNameData = sessionStorage.getItem('tunetap_showArtistName');
+			const allowPartialStartData = sessionStorage.getItem('tunetap_allowPartialStart');
 
 			if (tracksData) loadedTracks = JSON.parse(tracksData);
 			if (playerCountData) loadedPlayerCount = parseInt(playerCountData, 10);
 			if (showSongNameData) this.showSongName = showSongNameData === 'true';
 			if (showArtistNameData) this.showArtistName = showArtistNameData === 'true';
+			if (allowPartialStartData) this.allowPartialStartPreference = allowPartialStartData === 'true';
 
 			sessionStorage.removeItem('tunetap_tracks');
 			sessionStorage.removeItem('tunetap_playerCount');
 			sessionStorage.removeItem('tunetap_showSongName');
 			sessionStorage.removeItem('tunetap_showArtistName');
+			sessionStorage.removeItem('tunetap_allowPartialStart');
 		} catch (error) {
 			console.error('[Game] Error loading from sessionStorage:', error);
 		}
@@ -193,6 +197,9 @@ export class GamePageState {
 			if (pageState?.playerCount) loadedPlayerCount = pageState.playerCount;
 			if (pageState?.showSongName !== undefined) this.showSongName = pageState.showSongName;
 			if (pageState?.showArtistName !== undefined) this.showArtistName = pageState.showArtistName;
+			if (pageState?.allowPartialStart !== undefined) {
+				this.allowPartialStartPreference = pageState.allowPartialStart;
+			}
 		}
 
 		loadedPlayerCount = Math.min(6, Math.max(2, loadedPlayerCount));
@@ -346,6 +353,7 @@ export class GamePageState {
 
 		if (pendingTracks.length === 0) {
 			this.playableTrackRefreshInterval?.pause();
+			this.handleNoPendingTracks();
 			return;
 		}
 
@@ -379,6 +387,7 @@ export class GamePageState {
 			const stillPending = this.tracks.some((track) => this.trackNeedsReleaseDate(track));
 			if (!stillPending) {
 				this.playableTrackRefreshInterval?.pause();
+				this.handleNoPendingTracks();
 			}
 		} catch (error) {
 			console.error('[Game] Error refreshing playable tracks:', error);
@@ -419,10 +428,18 @@ export class GamePageState {
 		const interval = this.playableTrackRefreshInterval;
 		if (!interval) return;
 		const needsRefresh = this.tracks.some((track) => this.trackNeedsReleaseDate(track));
-		if (needsRefresh) {
+		if (needsRefresh || this.gameEngine?.gameStatus === 'waiting') {
 			interval.resume();
 		} else {
 			interval.pause();
+		}
+	}
+
+	private handleNoPendingTracks() {
+		if (!this.gameEngine) return;
+		const stillPending = this.tracks.some((track) => this.trackNeedsReleaseDate(track));
+		if (!stillPending && this.gameEngine.gameStatus === 'waiting' && this.gameEngine.availableTracks.length === 0) {
+			this.gameEngine.endGame();
 		}
 	}
 

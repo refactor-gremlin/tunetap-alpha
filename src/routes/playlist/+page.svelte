@@ -9,6 +9,7 @@
 	import * as Card from '$lib/components/shadncn-ui/card/index.js';
 	import { Checkbox } from '$lib/components/shadncn-ui/checkbox/index.js';
 	import PageHeader from '$lib/components/custom/PageHeader.svelte';
+	import { RECOMMENDED_PLAYABLE_TRACKS, MIN_PARTIAL_START_TRACKS } from '$lib/constants/game';
 
 	let playlistUrl = $state('');
 	let tracks = $state<Track[] | null>(null);
@@ -17,39 +18,52 @@
 	let progressCurrent = $state(0);
 	let progressTotal = $state(0);
 	let progressStatus = $state<string>('');
-let progressError = $state<string | null>(null);
+	let progressError = $state<string | null>(null);
 	let playerCount = $state(2);
 	let showPlayerCountSelection = $state(false);
 	let showSongName = $state(false);
 	let showArtistName = $state(false);
-let jobId = $state<string | null>(null);
+	let allowPartialStart = $state(false);
+	let startWarning = $state<string | null>(null);
+	let jobId = $state<string | null>(null);
 
 	let progressMessageElement: HTMLDivElement | null = $state(null);
 
-const createClientJobId = () => {
-	if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-		return crypto.randomUUID();
-	}
-	return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-};
+	const createClientJobId = () => {
+		if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+			return crypto.randomUUID();
+		}
+		return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+	};
+
+	const playableAudioCount = $derived(
+		tracks ? tracks.filter((t) => t.status === 'found' && !!t.audioUrl).length : 0
+	);
+	const meetsRecommendedThreshold = $derived(
+		playableAudioCount >= RECOMMENDED_PLAYABLE_TRACKS
+	);
+	const canUsePartialStart = $derived(
+		playableAudioCount >= MIN_PARTIAL_START_TRACKS
+	);
+	const canNavigateToGame = $derived(
+		meetsRecommendedThreshold || (allowPartialStart && canUsePartialStart)
+	);
 
 	// Create interval at component level, but don't start it immediately
 	const progressInterval = useInterval(200, {
 		immediate: false,
 		callback: async () => {
 			try {
-			if (!playlistUrl.trim() || !jobId) {
+				if (!playlistUrl.trim() || !jobId) {
 					return;
 				}
-			const progress = await getPlaylistProgress({ playlistUrl, jobId });
+				const progress = await getPlaylistProgress({ playlistUrl, jobId });
 				if (progress) {
-					// Add new message if it's different from the last one
 					if (
 						progressMessages.length === 0 ||
 						progressMessages[progressMessages.length - 1] !== progress.message
 					) {
 						progressMessages = [...progressMessages, progress.message];
-						// Keep only last 50 messages to prevent memory issues
 						if (progressMessages.length > 50) {
 							progressMessages = progressMessages.slice(-50);
 						}
@@ -57,13 +71,13 @@ const createClientJobId = () => {
 					progressCurrent = progress.current;
 					progressTotal = progress.total;
 					progressStatus = progress.status;
-				if (progress.status === 'error') {
-					progressError = progress.message;
-					progressInterval.pause();
-					loading = false;
+					if (progress.status === 'error') {
+						progressError = progress.message;
+						progressInterval.pause();
+						loading = false;
+					}
 				}
-				}
-			} catch (error) {
+			} catch {
 				// Ignore polling errors
 			}
 		}
@@ -88,29 +102,31 @@ const createClientJobId = () => {
 		progressCurrent = 0;
 		progressTotal = 0;
 		progressStatus = '';
-	progressError = null;
-	tracks = null;
-	showPlayerCountSelection = false;
+ 		progressError = null;
+		tracks = null;
+		showPlayerCountSelection = false;
+		allowPartialStart = false;
+		startWarning = null;
 
 		// Start polling for progress
 		progressInterval.resume();
 
 		try {
-		const result = await submitPlaylist({ playlistUrl, jobId: newJobId });
+			const result = await submitPlaylist({ playlistUrl, jobId: newJobId });
 			if (result.success) {
-			tracks = result.tracks;
+				tracks = result.tracks;
 				// Show player count selection
 				showPlayerCountSelection = true;
-		} else {
-			progressError = result.error ?? 'Failed to process playlist.';
-			progressStatus = 'error';
-			progressMessages = [...progressMessages, `Error: ${progressError}`];
+			} else {
+				progressError = result.error ?? 'Failed to process playlist.';
+				progressStatus = 'error';
+				progressMessages = [...progressMessages, `Error: ${progressError}`];
 			}
 		} catch (error) {
 			console.error('Error submitting playlist:', error);
-		const message = (error as Error).message;
-		progressError = message;
-		progressMessages = [...progressMessages, `Error: ${message}`];
+			const message = (error as Error).message;
+			progressError = message;
+			progressMessages = [...progressMessages, `Error: ${message}`];
 		} finally {
 			loading = false;
 			progressInterval.pause();
@@ -119,6 +135,13 @@ const createClientJobId = () => {
 
 	function startGame() {
 		const clampedPlayerCount = Math.min(6, Math.max(2, playerCount));
+		startWarning = null;
+		if (!canNavigateToGame) {
+			startWarning = meetsRecommendedThreshold
+				? 'Enable partial start to continue.'
+				: `Need ${RECOMMENDED_PLAYABLE_TRACKS} playable tracks or turn on partial start (min ${MIN_PARTIAL_START_TRACKS}).`;
+			return;
+		}
 		if (tracks && clampedPlayerCount >= 2 && clampedPlayerCount <= 6) {
 			// Store tracks in sessionStorage (can't pass complex objects via navigation state)
 			try {
@@ -126,6 +149,7 @@ const createClientJobId = () => {
 				sessionStorage.setItem('tunetap_playerCount', clampedPlayerCount.toString());
 				sessionStorage.setItem('tunetap_showSongName', showSongName.toString());
 				sessionStorage.setItem('tunetap_showArtistName', showArtistName.toString());
+				sessionStorage.setItem('tunetap_allowPartialStart', allowPartialStart.toString());
 				// Navigate to game page
 				goto('/game');
 			} catch (error) {
@@ -136,7 +160,8 @@ const createClientJobId = () => {
 						tracksData: JSON.stringify(tracks),
 						playerCount: clampedPlayerCount,
 						showSongName,
-						showArtistName
+						showArtistName,
+						allowPartialStart
 					}
 				});
 			}
@@ -221,6 +246,23 @@ const createClientJobId = () => {
 							</Button>
 						{/each}
 					</div>
+					<div class="playable-summary">
+						<p>
+							Playable tracks ready: {playableAudioCount} / {RECOMMENDED_PLAYABLE_TRACKS}
+						</p>
+						{#if canUsePartialStart}
+							<label class="partial-start-cta">
+								<Checkbox bind:checked={allowPartialStart} />
+								<span>
+									Allow partial start (min {MIN_PARTIAL_START_TRACKS} tracks). We'll keep loading more in the background.
+								</span>
+							</label>
+						{:else}
+							<p class="partial-start-note">
+								Need at least {MIN_PARTIAL_START_TRACKS} playable tracks to enable partial start.
+							</p>
+						{/if}
+					</div>
 					<div class="display-options">
 						<p class="instruction">Display Options:</p>
 						<div class="checkbox-group">
@@ -234,7 +276,12 @@ const createClientJobId = () => {
 							</label>
 						</div>
 					</div>
-					<Button size="lg" onclick={startGame} class="start-button">Start Game</Button>
+					{#if startWarning}
+						<p class="start-warning">{startWarning}</p>
+					{/if}
+					<Button size="lg" onclick={startGame} class="start-button" disabled={!canNavigateToGame}>
+						{canNavigateToGame ? 'Go to Player Setup' : 'Waiting for tracks...'}
+					</Button>
 				</div>
 			</Card.Content>
 		</Card.Root>
@@ -335,6 +382,39 @@ const createClientJobId = () => {
 		flex-direction: column;
 		gap: 0.75rem;
 		align-items: center;
+	}
+
+	.playable-summary {
+		width: 100%;
+		padding: 1rem;
+		border: 1px solid var(--border);
+		border-radius: calc(var(--radius) - 2px);
+		background-color: var(--muted);
+		text-align: left;
+		color: var(--foreground);
+		font-size: 0.9rem;
+	}
+
+	.partial-start-cta,
+	.partial-start-note {
+		display: block;
+		margin-top: 0.5rem;
+		font-size: 0.85rem;
+		color: var(--muted-foreground);
+	}
+
+	.partial-start-cta {
+		display: flex;
+		gap: 0.5rem;
+		align-items: flex-start;
+	}
+
+	.start-warning {
+		width: 100%;
+		margin: 0.5rem 0 0 0;
+		color: hsl(var(--destructive));
+		text-align: center;
+		font-weight: 500;
 	}
 
 	.checkbox-group {

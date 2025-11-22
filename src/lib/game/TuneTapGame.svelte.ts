@@ -60,16 +60,20 @@ export class TuneTapGame {
 
 		this.initialTurnCount = this.availableTracks.length;
 		this.turnsTaken = 0;
-
-		this.gameStatus = 'playing';
 		this.currentPlayerIndex = 0;
-		this.selectRandomTrack();
+
+		if (this.availableTracks.length === 0) {
+			this.setWaitingForTracks();
+		} else {
+			this.gameStatus = 'playing';
+			this.selectRandomTrack();
+		}
 	}
 
 	// Select random track for current turn
 	selectRandomTrack() {
 		if (this.availableTracks.length === 0) {
-			this.endGame();
+			this.setWaitingForTracks();
 			return;
 		}
 
@@ -261,13 +265,14 @@ export class TuneTapGame {
 			return;
 		}
 
+		this.turnsTaken = Math.min(this.turnsTaken + 1, this.initialTurnCount);
+		this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
+
 		if (this.availableTracks.length === 0) {
-			this.endGame();
+			this.setWaitingForTracks();
 			return;
 		}
 
-		this.turnsTaken = Math.min(this.turnsTaken + 1, this.initialTurnCount);
-		this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
 		this.selectRandomTrack();
 		this.gameStatus = 'playing';
 	}
@@ -277,7 +282,9 @@ export class TuneTapGame {
 	}
 
 	addPlayableTracks(tracks: Track[]) {
-		const eligibleTracks = tracks.filter((track) => this.isTrackPlayable(track) && !this.isTrackAlreadyUsed(track.id));
+		const eligibleTracks = tracks.filter(
+			(track) => this.isTrackPlayable(track) && !this.isTrackAlreadyUsed(track.id)
+		);
 		if (eligibleTracks.length === 0) {
 			return;
 		}
@@ -285,7 +292,10 @@ export class TuneTapGame {
 		this.availableTracks = [...this.availableTracks, ...eligibleTracks];
 		this.initialTurnCount += eligibleTracks.length;
 
-		if (!this.currentTrack && this.availableTracks.length > 0) {
+		if (this.gameStatus === 'waiting') {
+			this.gameStatus = 'playing';
+			this.selectRandomTrack();
+		} else if (!this.currentTrack) {
 			this.selectRandomTrack();
 		}
 	}
@@ -409,5 +419,11 @@ export class TuneTapGame {
 			return true;
 		}
 		return this.players.some((player) => player.timeline.some((track) => track.id === trackId));
+	}
+
+	private setWaitingForTracks() {
+		this.gameStatus = 'waiting';
+		this.currentTrack = null;
+		this.roundResult = null;
 	}
 }

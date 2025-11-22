@@ -1,0 +1,2 @@
+export const RECOMMENDED_PLAYABLE_TRACKS = 80;
+export const MIN_PARTIAL_START_TRACKS = 5;

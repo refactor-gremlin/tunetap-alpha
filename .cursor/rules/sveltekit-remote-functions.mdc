@@ -88,7 +88,7 @@ const data = query.current;
 <!-- ❌ Don't use shorthand -->
 {#await getData() then data}<Content />{/await}
 
-<!-- ❌ Don't use boundary snippets -->
+<!-- ❌ Don't use boundary pending snippets -->
 <svelte:boundary>
   {#snippet pending()}<Skeleton />{/snippet}
 </svelte:boundary>

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 
 	import { ViewportSizeDetector } from '$lib/hooks/viewport-size.svelte.js';
@@ -7,7 +8,6 @@
 
 import { Button } from '$lib/components/shadncn-ui/button/index.js';
 	import * as Card from '$lib/components/shadncn-ui/card/index.js';
-	import PageHeader from '$lib/components/custom/PageHeader.svelte';
 
 	// Import common components
 	import Needle from '$lib/components/custom/tunetap/common/needle/Needle.svelte';
@@ -104,12 +104,31 @@ import { Button } from '$lib/components/shadncn-ui/button/index.js';
 			playerNames={pageState.playerNames}
 			playableTracksCount={playableTracksCount}
 			totalTracksCount={pageState.tracks.length}
+			defaultAllowPartialStart={pageState.allowPartialStartPreference}
 			onStartGame={() => pageState.initializeGame()}
 		/>
 	</div>
 {:else if gameStatus === 'gameEnd'}
 	<div class="game-end-container">
 		<ActiveView.GameEndScreen {players} {winner} onRestart={() => pageState.restartGame()} />
+	</div>
+{:else if gameStatus === 'waiting'}
+	<div class="waiting-container">
+		<Card.Root class="waiting-card">
+			<Card.Header>
+				<Card.Title>Waiting for more tracks…</Card.Title>
+			</Card.Header>
+			<Card.Content>
+				<p>We're still fetching release dates to continue the game.</p>
+				<p>
+					Queue size: {pageState.queueSize} pending
+				</p>
+				<p class="waiting-hint">
+					Keep the tab open; new tracks will appear automatically once ready.
+				</p>
+				<Button variant="outline" onclick={() => goto('/playlist')}>Load different playlist</Button>
+			</Card.Content>
+		</Card.Root>
 	</div>
 {:else}
 	<div
@@ -208,7 +227,8 @@ import { Button } from '$lib/components/shadncn-ui/button/index.js';
 
 	.no-tracks-container,
 	.setup-container,
-	.game-end-container {
+	.game-end-container,
+	.waiting-container {
 		min-height: 100vh;
 		padding: 2rem;
 		display: flex;
@@ -216,6 +236,16 @@ import { Button } from '$lib/components/shadncn-ui/button/index.js';
 		justify-content: center;
 		position: relative;
 		z-index: 1;
+	}
+
+	:global(.waiting-card) {
+		max-width: 520px;
+		text-align: center;
+	}
+
+	.waiting-hint {
+		margin: 1rem 0;
+		color: var(--muted-foreground);
 	}
 
 	:global(body) {

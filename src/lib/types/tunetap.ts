@@ -11,7 +11,7 @@ export interface PlacementResult {
 	correctPosition: number;
 }
 
-export type GameStatus = 'setup' | 'playing' | 'roundEnd' | 'gameEnd';
+export type GameStatus = 'setup' | 'playing' | 'roundEnd' | 'waiting' | 'gameEnd';
 export type PlacementType = 'before' | 'after' | 'same';
 
 export interface YearMarker {
