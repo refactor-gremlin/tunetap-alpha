@@ -1,3 +1,19 @@
+<!--
+@component
+
+A flexible page container component with animated gradient background and responsive layout.
+Provides consistent spacing and layout for all pages.
+
+Usage:
+  ```html
+  <PageContainer>
+    <div class="content">
+      <h1>Welcome</h1>
+      <p>Your page content here</p>
+    </div>
+  </PageContainer>
+  ```
+-->
 <script lang="ts">
 	import AnimatedGradient from './AnimatedGradient.svelte';
 

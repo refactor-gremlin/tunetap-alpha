@@ -1,3 +1,21 @@
+<!--
+@component
+
+The Needle component provides the central UI element for track placement in the timeline game interface.
+It displays a needle indicator and a drop button for placing tracks either in gaps or on the same year.
+
+Usage:
+  ```html
+  <Needle
+    showDropButton={showDropButton}
+    activeGapIndex={activeGapIndex}
+    activeCardIndex={activeCardIndex}
+    gameStatus={gameStatus}
+    onPlaceFromGap={handlePlaceFromGap}
+    onPlaceSameYear={handlePlaceSameYear}
+  />
+  ```
+-->
 <script lang="ts">
 	import type { GameStatus } from '$lib/types/tunetap.js';
 	import { Button } from '$lib/components/shadncn-ui/button/index.js';

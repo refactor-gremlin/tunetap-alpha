@@ -1,0 +1,293 @@
+---
+description: Patterns for data loading, mutations, and optimistic updates using Remote Functions
+alwaysApply: false
+globs: src/**/*.svelte, src/**/data.remote.ts
+---
+
+# Data Loading & Remote Functions
+
+## The Pattern
+We use SvelteKit Remote Functions (or a similar RPC-like layer) combined with Svelte 5's generic async/await and `<svelte:boundary>`.
+
+### Standard Loading Component
+**NEVER** load data in `$state` classes. Always load in the component template.
+
+```svelte
+<script lang="ts">
+  import { page } from '$app/state';
+  import { getItemDetails } from './data.remote';
+  import { createBoundaryErrorHandler } from "$lib/utils/error-boundary";
+
+  const id = $derived(Number(page.params.id) || 0);
+</script>
+
+<svelte:boundary onerror={createBoundaryErrorHandler('ComponentName')}>
+  {#snippet failed(error, reset)}
+    <div class="error-container">
+      <p>{error.message}</p>
+      <button onclick={reset}>Retry</button>
+    </div>
+  {/snippet}
+
+  {#await getItemDetails({ id })}
+    <Skeleton />
+  {:then data}
+    <ItemView {data} />
+  {:catch error}
+    {(() => { throw error; })()}
+  {/await}
+</svelte:boundary>
+```
+
+### Critical Rules
+
+1.  **Rethrow Errors:** `svelte:boundary` does not catch Promise rejections automatically. You MUST use `{:catch error} {(() => { throw error; })()} {/catch}` inside the await block to propagate the error to the boundary.
+2.  **No Derived Queries:** Do not wrap query calls in `$derived`. Call them directly in the markup.
+3.  **Boundary placement:** Put boundaries *inside* logical checks (e.g., `{#if id > 0}`) so empty states don't trigger errors.
+
+## Standardized Error Handling Pattern
+
+All `svelte:boundary` components should use standardized error handling for consistent error reporting and user experience.
+
+**Pattern:**
+- Use `failed` snippet for user-facing error UI
+- Use `createBoundaryErrorHandler(context)` from `$lib/utils/error-boundary` for error reporting/logging
+
+```svelte
+<script lang="ts">
+  import { createBoundaryErrorHandler } from "$lib/utils/error-boundary";
+  import { getItems } from "./data.remote";
+</script>
+
+<svelte:boundary onerror={createBoundaryErrorHandler('ComponentName')}>
+  {#snippet failed(error, reset)}
+    <div class="rounded-lg border border-dashed border-destructive/50 bg-destructive/10 p-4">
+      <p class="text-destructive mb-2">Could not load data.</p>
+      <button onclick={reset} class="text-xs underline hover:no-underline">
+        Try again
+      </button>
+    </div>
+  {/snippet}
+
+  {#await getItems({ id })}
+    <Skeleton />
+  {:then data}
+    <ItemView {data} />
+  {:catch error}
+    {(() => { throw error; })()}
+  {/await}
+</svelte:boundary>
+```
+
+**Error Handling Utility (`$lib/utils/error-boundary.ts`):**
+```typescript
+import type { HandleError } from 'svelte';
+import { dev } from '$app/environment';
+import * as Sentry from '@sentry/sveltekit';
+
+export function createBoundaryErrorHandler(context: string): HandleError {
+  return ({ error, event }) => {
+    // Development: console logging
+    if (dev) {
+      console.error(`[${context}] Error:`, error);
+      return;
+    }
+    
+    // Production: Sentry reporting
+    Sentry.captureException(error, {
+      tags: { context },
+      extra: { 
+        url: event.url.pathname,
+        timestamp: new Date().toISOString()
+      }
+    });
+  };
+}
+```
+
+**Critical Error Rules:**
+- ✅ Always include `failed` snippet for error UI
+- ✅ Always use `createBoundaryErrorHandler(context)` for error reporting
+- ✅ Provide meaningful context strings (e.g., 'ItemList', 'UserProfile')
+- ✅ Include retry button using the `reset` function
+- ✅ Always rethrow errors in `{:catch}` blocks: `{(() => { throw error; })()}`
+- ❌ Never use empty `{:catch}` blocks - they silently swallow errors
+- ❌ Promise rejections are NOT automatically caught by boundaries
+
+## Mutation & Forms
+
+### Command Functions (Custom Form Handling)
+Use typed objects for form submissions with command functions:
+
+```svelte
+<script lang="ts">
+  import { updateItem } from './actions.remote';
+  
+  let formData = $state({
+    title: '',
+    description: ''
+  });
+  
+  async function handleSubmit() {
+    try {
+      const result = await updateItem(formData);
+      if (result.success) {
+        formData = { title: '', description: '' }; // Reset form
+      }
+    } catch (error) {
+      console.error('Failed to update item:', error);
+    }
+  }
+</script>
+
+<form onsubmit={handleSubmit}>
+  <input bind:value={formData.title} />
+  <textarea bind:value={formData.description}></textarea>
+  <button type="submit">Submit</button>
+</form>
+```
+
+### Form Functions (Progressive Enhancement)
+For standard HTML form submissions with automatic validation (using experimental Remote Functions API v2.27+):
+
+```typescript
+import { form } from '$app/server';
+import { error, redirect } from '@sveltejs/kit';
+
+// actions.server.ts or similar
+export const createPost = form(async (data) => {
+  // Check user authentication
+  const user = await auth.getUser();
+  if (!user) error(401, 'Unauthorized');
+
+  const title = data.get('title');
+  const content = data.get('content');
+
+  // Validate data
+  if (typeof title !== 'string' || typeof content !== 'string') {
+    error(400, 'Title and content are required');
+  }
+
+  // Create post
+  const slug = title.toLowerCase().replace(/ /g, '-');
+  await db.sql`
+    INSERT INTO post (slug, title, content)
+    VALUES (${slug}, ${title}, ${content})
+  `;
+
+  // Redirect after success
+  redirect(303, `/blog/${slug}`);
+});
+```
+
+```svelte
+<!-- Form function component -->
+<script lang="ts">
+  import { createPost } from './actions.server';
+</script>
+
+<h1>Create a new post</h1>
+
+<form {...createPost}>
+  <label>
+    <h2>Title</h2>
+    <input name="title" />
+  </label>
+
+  <label>
+    <h2>Write your post</h2>
+    <textarea name="content"></textarea>
+  </label>
+
+  <button>Publish!</button>
+</form>
+
+{#if createPost.result?.success}
+  <p>Successfully published!</p>
+{/if}
+```
+
+### Enhanced Forms with Optimistic Updates
+Combine both approaches for enhanced forms:
+
+```svelte
+<script lang="ts">
+  import { updateItem } from './actions.remote';
+  import { getItemDetails } from './data.remote';
+</script>
+
+<form {...updateItem.enhance(async ({ form, data, submit }) => {
+    // 1. Optimistic Update
+    await submit().updates(
+        getItemDetails({ id: data.id }).withOverride((current) => {
+            return { ...current, ...data };
+        })
+    );
+    // 2. Reset on success
+    form.reset();
+})}>
+  <input name="title" />
+  <textarea name="content"></textarea>
+  <button type="submit">Update</button>
+</form>
+```
+
+**Key Points:**
+- Use `form` functions for standard HTML forms with progressive enhancement
+- Use `command` functions for custom form handling and API calls
+- Use `.enhance()` for optimistic updates and custom client-side logic
+- Data access: `data.propertyName` (not `data.get()`)
+- Form functions automatically handle redirects and validation errors
+
+### Optimistic Update Rules
+
+  - **Match Queries Exactly:** The query in `.withOverride()` must exactly match the query in `{#await}`.
+  - **No Manual Refresh:** Do **NOT** call `.refresh()` or `invalidateAll()` after `.updates()`. The library handles re-fetching.
+  - **Scroll Stability:** Prefer optimistic updates over hard invalidations to prevent scroll jumping.
+
+### Advanced: Race Condition Prevention
+When multiple optimistic updates happen rapidly (e.g., scanning multiple items), a manual `refresh()` can overwrite pending updates.
+
+**The Pattern:**
+1.  **Don't Refresh Manually:** Remote functions handles the refresh after `.updates()`.
+2.  **Track Status with Map:** Use a `Map<string, Status>` in your Context State, not just a Set.
+
+```typescript
+// State Class
+optimisticUpdates = $state(new Map<string, string>());
+
+addOptimistic(id: string, status: string) {
+  this.optimisticUpdates.set(id, status);
+}
+
+removeOptimistic(id: string) {
+  this.optimisticUpdates.delete(id);
+}
+
+// Display Logic
+getDisplayStatus(item: Item) {
+  // Prefer optimistic status over server data
+  if (this.optimisticUpdates.has(item.id)) {
+    return this.optimisticUpdates.get(item.id);
+  }
+  return item.status;
+}
+```
+
+**Why Map vs Set:**
+- `Set<string>` only tracks presence (good for boolean flags)
+- `Map<string, Status>` tracks actual status values (crucial for UI state)
+- Prevents race conditions where rapid operations overwrite each other
+
+**Example Implementation:**
+```typescript
+// During form submission
+context.addOptimistic(packageId, "scanned");
+await submit().updates(
+  getPackages().withOverride((current) => 
+    current.map(p => p.id === packageId ? {...p, status: "scanned"} : p)
+  )
+);
+// Remove ONLY after .updates() completes
+context.removeOptimistic(packageId);
+```

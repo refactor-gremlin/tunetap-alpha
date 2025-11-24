@@ -1,0 +1,75 @@
+---
+description: General coding standards, file structure, and Svelte 5 conventions
+alwaysApply: true
+globs: src/**/*
+---
+
+# Project Coding Standards
+
+## General Guidelines
+
+### Svelte 5 Runes Exclusively
+- Use `$state`, `$derived`/`$derived.by()`, `$effect`, and `$props` exclusively.
+- **Forbidden:** Legacy `export let`, `$:`, and `onMount` (unless absolutely necessary for library compat).
+- **Style:** Prefer explicit types in TypeScript.
+
+### Naming Conventions
+- **Components:** PascalCase (e.g., `ItemTable`).
+- **Component Files:** kebab-case with the `.svelte` extension (e.g., `item-table.svelte`).
+- **Functions/Vars:** camelCase.
+- **Remote Functions:**
+    - Queries: `get[Entity]`, `list[Entities]`
+    - Mutations: `create[Entity]`, `update[Entity]`, `delete[Entity]`
+
+## File Structure Pattern
+
+```text
+src/
+├── routes/
+│   ├── (app)/              # Authenticated routes
+│   └── (auth)/             # Public/Auth routes
+├── features/               # Feature-based organization
+│   └── [feature-name]/
+│       ├── components/     # Feature-specific UI
+│       ├── state/          # OOP Context classes
+│       └── modals/         # Feature-specific modals
+├── lib/
+│   ├── components/         # Shared UI components
+│   ├── utils/              # Shared logic
+│   └── server/             # Database & server logic
+```
+
+## Component Documentation
+
+All new components must include an `@component` comment block at the top of the file, before the `<script>` tag. This comment provides documentation about the component's purpose, usage, and examples.
+
+**Required Format:**
+```svelte
+<!--
+@component
+
+Brief description of what this component does.
+
+- You can use markdown formatting here
+- Include usage examples, props documentation, etc.
+- Use code blocks for example usage:
+
+Usage:
+
+  ```html
+  <ComponentName prop="value" />
+  ```
+
+-->
+
+<script lang="ts">
+  let { prop } = $props();
+</script>
+```
+
+## Best Practices Checklist
+
+  - ✅ Keep components small and focused.
+  - ✅ Use `snippet` for reusable internal markup.
+  - ✅ Use `$derived.by` for complex multi-line logic, `$derived` for single expressions.
+  - ✅ Use standard HTML attributes with Runes on DOM elements (e.g., `onclick` instead of `on:click`). For component events, use callback props (e.g., `onSave`). Legacy event modifiers like `|preventDefault` are removed; implement logic in the handler or use `onclickcapture`.

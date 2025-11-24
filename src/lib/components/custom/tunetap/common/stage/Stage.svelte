@@ -1,3 +1,21 @@
+<!--
+@component
+
+The Stage component displays the current track being played with a vinyl record visualization and track information.
+
+Usage:
+  ```html
+  <Stage
+    currentTrack={currentTrack}
+    isPlaying={isPlaying}
+    showSongName={showSongName}
+    showArtistName={showArtistName}
+    showReleaseDates={showReleaseDates}
+    blurred={blurred}
+    onRevealClick={handleRevealClick}
+  />
+  ```
+-->
 <script lang="ts">
 	import type { Track } from '$lib/types.js';
 

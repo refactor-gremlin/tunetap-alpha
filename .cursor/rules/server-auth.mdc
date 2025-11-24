@@ -1,0 +1,99 @@
+---
+alwaysApply: false
+---
+# Server-Side Authentication Patterns
+
+## Architecture
+Authentication is handled exclusively server-side using SvelteKit Hooks and HttpOnly cookies.
+
+### Server Hooks (`hooks.server.ts`)
+The handle hook is the central gatekeeper:
+1.  **Check Route:** Is the route protected?
+2.  **Validate Token:** Verify JWT from cookies.
+3.  **Refresh:** Attempt to refresh token if expired (with locking to prevent concurrency).
+4.  **Populate Locals:** Set `event.locals.user`.
+
+```typescript
+export const handle: Handle = async ({ event, resolve }) => {
+  // 1. Skip public assets/APIs if needed
+  if (event.url.pathname.startsWith('/api/')) return resolve(event);
+
+  // 2. Validate & Refresh
+  const token = event.cookies.get('access_token');
+  const user = await validateOrRefresh(token, event.cookies);
+
+  // 3. Set Context
+  if (user) {
+    event.locals.user = user;
+  }
+
+  // 4. Protect Routes
+  if (isProtectedRoute(event.url.pathname) && !event.locals.user) {
+    throw redirect(303, '/login');
+  }
+
+  return resolve(event);
+};
+```
+
+## Security Best Practices
+
+### Cookie Configuration
+
+Always use specific security options for auth cookies:
+
+```typescript
+export const AUTH_COOKIE_OPTIONS = {
+  path: "/",
+  httpOnly: true, // No JS access
+  secure: !process.env.ALLOW_INSECURE_COOKIES, // Only for local dev (set ALLOW_INSECURE_COOKIES=true)
+  sameSite: "lax" as const,
+};
+```
+
+### Token Refresh Locking
+
+When refreshing tokens in `hooks.server.ts`, use a Map/Promise to prevent multiple parallel requests from trying to refresh the same token simultaneously.
+
+```typescript
+const ongoingRefreshes = new Map<string, Promise<any>>();
+
+async function refreshTokenSafely(userId: string, cookies: Cookies) {
+  const key = `refresh_${userId}`;
+
+  // 1. Return existing refresh if already in progress
+  if (ongoingRefreshes.has(key)) {
+    return await ongoingRefreshes.get(key);
+  }
+
+  // 2. Create and store the refresh promise
+  const refreshPromise = attemptTokenRefresh(cookies)
+    .then(result => result)
+    .catch(error => {
+      // Handle error: clear cookies, etc.
+      cookies.delete('access_token', { path: '/' });
+      throw error; // Caller should redirect to login
+    })
+    .finally(() => {
+      ongoingRefreshes.delete(key); // Cleanup
+    });
+
+  ongoingRefreshes.set(key, refreshPromise);
+  return await refreshPromise;
+}
+```
+
+## Client-Side Access
+
+Never read cookies in `+page.svelte`. Pass user data via `+layout.server.ts`:
+
+```typescript
+// +layout.server.ts
+export const load = async ({ locals }) => {
+  return { user: locals.user };
+};
+
+// +page.svelte
+let { data } = $props();
+// access data.user
+```

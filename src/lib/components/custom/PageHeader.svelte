@@ -1,3 +1,15 @@
+<!--
+@component
+
+A standard page header component with title, dark mode toggle, and optional right actions.
+
+Usage:
+  ```html
+  <PageHeader title="Welcome to TuneTap" {#snippet rightActions()}
+    <Button>Some Action</Button>
+  {/snippet} />
+  ```
+-->
 <script lang="ts">
 	import DarkModeToggle from './DarkModeToggle.svelte';
 

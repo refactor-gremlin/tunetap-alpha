@@ -1,3 +1,9 @@
+<!--
+@component
+
+The homepage component for the TuneTap application.
+Provides entry point to the playlist loading page with a simple, clean interface.
+-->
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { Button } from '$lib/components/shadncn-ui/button/index.js';

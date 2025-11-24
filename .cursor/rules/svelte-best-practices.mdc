@@ -1,0 +1,255 @@
+---
+description: Detailed Svelte 5 syntax rules, Runes usage, and TypeScript integration
+alwaysApply: true
+globs: *.svelte, *.svelte.ts
+---
+
+# Svelte 5 Best Practices
+
+## Runes Usage
+
+### `$derived` vs `$derived.by`
+- **Use `$derived`** for single-line expressions.
+  ```typescript
+  const double = $derived(count * 2);
+  ```
+
+  - **Use `$derived.by`** for complex logic, loops, or early returns.
+    ```typescript
+    const filtered = $derived.by(() => {
+      if (!active) return [];
+      return list.filter(i => i.score > 50);
+    });
+    ```
+
+### `$effect`
+
+  - Avoid `$effect` for derived state (use `$derived`).
+  - Use `$effect` only for side effects (logging, analytics, direct DOM manipulation).
+
+## Data Loading Patterns
+
+### Standard Async/Await with Skeleton
+```svelte
+{#await getData()}
+  <Skeleton />
+{:then data}
+  <Content {data} />
+  {:catch error}
+    <Error {error} />
+{/await}
+```
+
+### Shorthand without Pending State
+When data changes frequently and you want to avoid content jumping, omit the pending state using shorthand syntax:
+
+```svelte
+{svelte:boundary}
+  {#await getData() then data}
+    <Content {data} />
+  {:catch error}
+    <Error {error} />
+  {/await}
+</svelte:boundary>
+```
+
+**When to Use Shorthand:**
+- Data updates frequently (real-time data, live feeds)
+- Previous content should remain visible while loading
+- You want smoother transitions without loading indicators
+- Loading indicators cause visual displacement
+
+**Important:** Always include `{:catch}` blocks and wrap in `<svelte:boundary>` for proper error handling, even when omitting the pending state.
+
+## Decision Rules: `$derived` vs `$derived.by`
+
+1.  **Can it fit in one line?** → Use `$derived(expression)`
+    * `const double = $derived(count * 2);`
+2.  **Does it need `if/else`, loops, or variables?** → Use `$derived.by(() => { ... })`
+    * *Note: `$derived.by` executes the function immediately and tracks dependencies.*
+
+## Common Template Pitfalls
+- **`@const` Usage:** Only use `{@const x = ...}` if the variable is used **2+ times** or is computationally expensive. If used once, inline it.
+- **Legacy:** Never use `export let` (use `$props`). Never use `$: ` (use `$derived` or `$effect`).
+
+## TypeScript in Svelte
+
+### Typing Props
+
+Always use the generic `Props` interface pattern:
+
+```svelte
+<script lang="ts">
+  interface Props {
+    data: MyData;
+    optional?: string;
+    // Event callback style
+    onChange: (val: string) => void;
+  }
+
+  let { data, optional = 'default', onChange }: Props = $props();
+</script>
+```
+
+### Typing Snippets
+
+When passing snippets as props:
+
+```typescript
+import type { Snippet } from 'svelte';
+
+interface Props {
+  header: Snippet;
+  row: Snippet<[Item]>; // Snippet receiving parameters
+}
+```
+
+## Template Logic
+
+  - Use `@const` to reuse calculations in `{#each}` blocks.
+  - Use `{#snippet name(param)}` for reusable markup within the file.
+  - Avoid inline arrow functions in event handlers if the logic is complex.
+
+## Event Handling
+
+### Modern Event Handlers
+Use direct property binding instead of event directives:
+
+```typescript
+// ✅ Svelte 5: Direct property binding
+<button onclick={handleClick}>Click me</button>
+<button onkeydown={handleKeydown}>Press key</button>
+
+// ❌ Svelte 4: Old event directive
+<button on:click={handleClick}>Click me</button>
+<button on:keydown={handleKeydown}>Press key</button>
+```
+
+### Handle Multiple Event Handlers
+```typescript
+// ✅ Combine multiple handlers correctly
+<button onclick={(e) => {
+  handleFirst(e);
+  handleSecond(e);
+}}>
+  Click me
+</button>
+```
+
+## Snippets vs Slots
+
+Prefer `{@render children()}` using `$props()` to extract children over `<slot>`, unless there's a compelling reason to include a slot.
+
+```svelte
+<!-- ✅ Preferred: Using snippets -->
+<script lang="ts">
+  let { children } = $props();
+</script>
+
+<div class="card">
+  <div class="header">
+    {@render children()}
+  </div>
+</div>
+
+<!-- ❌ Avoid: Default slots unless needed -->
+<div class="card">
+  <div class="header">
+    <slot />
+  </div>
+</div>
+```
+
+**When to use slots:**
+- Multiple named slots are needed
+- Slot props are required
+- Fallback content is important
+- Working with legacy components
+
+## Accessibility
+
+### Semantic HTML
+```svelte
+<!-- ✅ Use proper semantic elements -->
+<button onclick={handleAction}>Submit</button>
+<nav>
+  <ul>
+    <li><a href="/home">Home</a></li>
+  </ul>
+</nav>
+
+<!-- ❌ Avoid divs for interactive elements -->
+<div onclick={handleAction}>Submit</div>
+```
+
+### ARIA Labels and Attributes
+```svelte
+<!-- ✅ Proper ARIA labeling -->
+<button aria-label="Close dialog" onclick={closeDialog}>
+  <span aria-hidden="true">×</span>
+</button>
+
+<div role="status" aria-live="polite">
+  {statusMessage}
+</div>
+```
+
+### Keyboard Navigation
+```svelte
+<!-- ✅ Ensure keyboard accessibility -->
+<script lang="ts">
+  let buttonRef: HTMLButtonElement;
+  
+  function handleKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleClick();
+    }
+  }
+</script>
+
+<button 
+  bind:this={buttonRef}
+  onclick={handleClick}
+  onkeydown={handleKeydown}
+  tabindex="0"
+>
+  Interactive element
+</button>
+```
+
+### Focus Management
+```svelte
+<!-- ✅ Proper focus management -->
+<script lang="ts">
+  import { activeElement } from "runed";
+  
+  function openModal() {
+    // Store current focus
+    previousFocus = activeElement.current;
+    // Focus modal content
+    modalContent.focus();
+  }
+  
+  function closeModal() {
+    // Restore previous focus
+    previousFocus?.focus();
+  }
+</script>
+
+<div 
+  role="dialog"
+  tabindex="-1"
+  onkeydown={(e) => {
+    if (e.key === 'Escape') closeModal();
+  }}
+>
+  <!-- Modal content -->
+</div>
+```
+
+### Color Contrast & Visual Accessibility
+- Ensure text meets WCAG AA contrast ratios (4.5:1 for normal text)
+- Don't rely on color alone to convey information
+- Include focus indicators for interactive elements
+- Test with screen readers and keyboard-only navigation

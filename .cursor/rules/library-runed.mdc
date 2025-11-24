@@ -1,0 +1,49 @@
+---
+description: Guide for using 'runed' library utilities
+alwaysApply: true
+globs: *.svelte, *.ts
+---
+
+# Runed Library Utilities
+
+Use `runed` to simplify complex reactivity patterns.
+
+## Commonly Used Utilities
+
+### `watch`
+Use instead of `$effect` when you need specific dependencies or previous values.
+```typescript
+watch(() => count, (curr, prev) => {
+  console.log(curr, prev);
+});
+```
+
+### `Debounced`
+
+Use for search inputs or expensive calculations.
+
+```typescript
+let search = $state("");
+const debounced = new Debounced(() => search, 500);
+// Use debounced.current
+```
+
+### `PersistedState`
+
+Use for UI preferences (sidebar state, theme, table columns).
+
+```typescript
+const preferences = new PersistedState("app-prefs", { sidebarOpen: true });
+```
+
+### `useSearchParams`
+
+Use for syncing URL query params with state (Runed Kit).
+
+```typescript
+import { useSearchParams } from "runed/kit";
+const params = useSearchParams({
+    page: z.number().default(1),
+    q: z.string().default("")
+});
+```

@@ -1,0 +1,128 @@
+---
+description: Object-Oriented State Management using Svelte 5 Context API
+alwaysApply: false
+globs: src/**/state/*.svelte.ts, src/**/*Context.svelte.ts
+---
+
+# OOP State Management Pattern
+
+Use Class-based Contexts with Runes for shared state.
+
+## Core Rule: Separation of Concerns
+- **State Class:** Stores data, handles UI logic, computes derived values.
+- **Component:** Fetches data, calls `state.updateData()`.
+- **CRITICAL:** State classes must **NEVER** perform async data fetching directly.
+
+## Structure
+
+### 1. The Context Class (`FeatureContext.svelte.ts`)
+```typescript
+import { getContext, setContext } from "svelte";
+
+const KEY = Symbol("FeatureContext");
+
+interface Item {
+  id: string;
+  // ... other properties
+}
+
+export class FeatureContext {
+  // 1. Primitive State
+  selectedId = $state<string | null>(null);
+  filters = $state({ active: true });
+
+  // 2. Data Storage (Loaded by Component)
+  items = $state<Item[]>([]);
+
+  // 3. Computed Logic
+  selectedItem = $derived(this.items.find(i => i.id === this.selectedId));
+
+  constructor(initialId?: string) {
+    if (initialId) this.selectedId = initialId;
+  }
+
+  // 4. Actions
+  select(id: string) {
+    this.selectedId = id;
+  }
+
+  // 5. Hydration
+  updateData(items: Item[]) {
+    this.items = items;
+  }
+}
+
+// Factory
+export function createFeatureContext() {
+  const ctx = new FeatureContext();
+  setContext(KEY, ctx);
+  return ctx;
+}
+
+// Hook
+export function useFeatureContext() {
+  return getContext<FeatureContext>(KEY);
+}
+```
+
+### 2. The Provider Component
+
+```svelte
+<script>
+  import { createFeatureContext } from './state';
+  import { getItems } from './data.remote';
+
+  const ctx = createFeatureContext();
+</script>
+
+{#await getItems()}
+  <Loading />
+{:then items}
+  {@const _ = ctx.updateData(items)}
+  <Slot />
+{/await}
+```
+
+## Best Practices
+
+1.  **Encapsulation:** Keep complex logic inside the class, not the component.
+2.  **Derived Properties:** Use `get propertyName() { return ... }` implies `$derived` logic within the class syntax naturally, but usually explicitly using `$derived` property is clearer in Svelte 5 classes.
+3.  **No Props Drilling:** Child components should use `useFeatureContext()` instead of receiving deeply nested props.
+
+## Decision Matrix: Context vs. Component
+
+| Feature | Where it belongs | Example |
+| :--- | :--- | :--- |
+| **Data Fetching** | **Component** | `{#await getItems()}` |
+| **Data Storage** | **Context Class** | `this.items = items` |
+| **Shared State** | **Context Class** | `this.selectedId` |
+| **Navigation** | **Component** | `goto('/next-page')` |
+| **Event Handlers** | **Component** | `onclick={handleKeydown}` |
+| **Computed Logic** | **Context Class** | `get filteredItems()` |
+| **Complex Mutations** | **Component** | Calling `updateItem.enhance()` |
+| **Form State** | **Component** | Local form inputs, validation |
+| **UI Preferences** | **Context Class** | Theme, sidebar state, filters |
+| **Page-Specific Logic** | **Component** | Keyboard shortcuts, page navigation |
+
+**Rule of Thumb:**
+- **State classes** are for **Data & Logic** that multiple components need to share
+- **Components** are for **Fetching, Rendering & User Interaction**
+- **When in doubt:** If only one component uses it, keep it in the component. If 2+ components need it, move to context.
+
+**Critical Separator:**
+```typescript
+// ✅ CORRECT: Component fetches, loads into context
+{#await getItems()}
+  <Loading />
+{:then items}
+  {@const _ = ctx.updateData(items)}
+  <Slot />
+{/await}
+
+// ❌ WRONG: Never fetch in context class
+export class BadContext {
+  async loadItems() { // DON'T DO THIS
+    this.items = await getItems();
+  }
+}
+```

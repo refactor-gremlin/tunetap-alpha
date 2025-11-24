@@ -1,3 +1,25 @@
+<!--
+@component
+
+The TimelineReel component displays the horizontal timeline with track cards and gap markers.
+It provides navigation controls and handles scrolling for the track placement game.
+
+Usage:
+  ```html
+  <TimelineReel
+    {timelineItems}
+    canScrollLeft={canScrollLeft}
+    canScrollRight={canScrollRight}
+    showSongName={showSongName}
+    showArtistName={showArtistName}
+    showReleaseDates={showReleaseDates}
+    onScrollLeft={handleScrollLeft}
+    onScrollRight={handleScrollRight}
+    fetchReleaseDate={fetchReleaseDate}
+    onReleaseDateResolved={handleReleaseDateResolved}
+  />
+  ```
+-->
 <script lang="ts">
 	import type { Track } from '$lib/types.js';
 	import { Button } from '$lib/components/shadncn-ui/button/index.js';
@@ -11,7 +33,7 @@
 		index?: number;
 		gapIndex?: number;
 		sameYearCount?: number;
-	sameYearTracks?: Track[];
+		sameYearTracks?: Track[];
 	};
 
 	let {
@@ -36,11 +58,13 @@
 		showReleaseDates?: boolean;
 		onScrollLeft: () => void;
 		onScrollRight: () => void;
-		fetchReleaseDate?: ((args: {
-			trackName: string;
-			artistName: string;
-			priority?: 'high' | 'low';
-		}) => Promise<string | undefined>) | null;
+		fetchReleaseDate?:
+			| ((args: {
+					trackName: string;
+					artistName: string;
+					priority?: 'high' | 'low';
+			  }) => Promise<string | undefined>)
+			| null;
 		onReleaseDateResolved?: (payload: { trackId: string; date?: string; error?: unknown }) => void;
 	} = $props();
 </script>
@@ -72,8 +96,8 @@
 						{item}
 						{showSongName}
 						{showArtistName}
-						fetchReleaseDate={fetchReleaseDate}
-						onReleaseDateResolved={onReleaseDateResolved}
+						{fetchReleaseDate}
+						{onReleaseDateResolved}
 					/>
 				{/if}
 				{#if item.type === 'gap'}

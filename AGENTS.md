@@ -256,6 +256,12 @@ Game logic is primarily in `src/routes/game2/+page.svelte`:
 
 ## Code Style Guidelines
 
+### IMPORTANT: Verification Commands
+- **USE**: `npm run check` for TypeScript verification
+- **NEVER** run `npm run lint` or `npm run format` unless explicitly asked
+- **WHY**: Linting often flags pre-existing formatting issues unrelated to your work
+
+### Formatting & Style
 - **Formatting**: Prettier with Svelte plugin
 - **Linting**: ESLint with Svelte plugin
 - **TypeScript**: Strict mode enabled
@@ -272,7 +278,6 @@ npm run dev
 ```
 
 ### Type Checking
-
 ```bash
 npm run check
 ```

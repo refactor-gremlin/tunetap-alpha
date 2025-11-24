@@ -1,3 +1,26 @@
+<!--
+@component
+
+The UnifiedGameHeader component displays the current game state including player information, scores,
+audio controls, and queue status. It shows whose turn it is and provides playback controls.
+
+Usage:
+  ```html
+  <UnifiedGameHeader
+    currentPlayer={currentPlayer}
+    players={players}
+    currentPlayerIndex={currentPlayerIndex}
+    turnNumber={turnNumber}
+    totalTurns={totalTurns}
+    currentTrack={currentTrack}
+    isPlaying={isPlaying}
+    onPlay={handlePlay}
+    onStop={handleStop}
+    queueStatusFetcher={getQueueStatus}
+    onQueueStatusUpdate={handleQueueUpdate}
+  />
+  ```
+-->
 <script lang="ts">
 	import type { Player } from '$lib/types/tunetap.js';
 	import type { Track } from '$lib/types.js';
@@ -110,7 +133,7 @@
 							<div class="queue-badge">
 								<Badge variant="outline">Queue updating…</Badge>
 							</div>
-					{:then status}
+						{:then status}
 							<div class="queue-badge">
 								<Badge variant="secondary">Queue: {status.pendingCount}</Badge>
 							</div>

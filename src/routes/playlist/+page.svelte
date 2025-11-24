@@ -10,6 +10,8 @@
 	import PageHeader from '$lib/components/custom/PageHeader.svelte';
 	import { RECOMMENDED_PLAYABLE_TRACKS, MIN_PARTIAL_START_TRACKS } from '$lib/constants/game';
 	import { onDestroy } from 'svelte';
+	import { createBoundaryErrorHandler } from '$lib/utils/error-boundary';
+	import ErrorState from '$lib/components/custom/common/ErrorState.svelte';
 
 	let playlistUrl = $state('');
 	let tracks = $state<Track[] | null>(null);
@@ -96,12 +98,8 @@
 	const playableAudioCount = $derived(
 		tracks ? tracks.filter((t) => t.status === 'found' && !!t.audioUrl).length : 0
 	);
-	const meetsRecommendedThreshold = $derived(
-		playableAudioCount >= RECOMMENDED_PLAYABLE_TRACKS
-	);
-	const canUsePartialStart = $derived(
-		playableAudioCount >= MIN_PARTIAL_START_TRACKS
-	);
+	const meetsRecommendedThreshold = $derived(playableAudioCount >= RECOMMENDED_PLAYABLE_TRACKS);
+	const canUsePartialStart = $derived(playableAudioCount >= MIN_PARTIAL_START_TRACKS);
 	const canNavigateToGame = $derived(
 		meetsRecommendedThreshold || (allowPartialStart && canUsePartialStart)
 	);
@@ -160,6 +158,8 @@
 					message: 'Playlist processing failed',
 					error: message
 				};
+				// Re-throw to trigger the error boundary
+				throw error;
 			});
 	}
 
@@ -228,11 +228,17 @@
 				<Card.Title>Processing Playlist</Card.Title>
 			</Card.Header>
 			<Card.Content>
-				<svelte:boundary>
+				<svelte:boundary onerror={createBoundaryErrorHandler('SubmitPlaylist')}>
+					{#snippet failed(error, reset)}
+						<ErrorState {error} {reset} />
+					{/snippet}
 					{#await submitPromise}
 						<div class="progress-message">
 							{#if progressPromise}
-								<svelte:boundary>
+								<svelte:boundary onerror={createBoundaryErrorHandler('PlaylistProgress')}>
+									{#snippet failed(error, reset)}
+										<ErrorState {error} {reset} />
+									{/snippet}
 									{#await progressPromise}
 										<p class="progress-line">Awaiting progress…</p>
 									{:then progress}
@@ -252,7 +258,9 @@
 											<p class="progress-line">Waiting for updates…</p>
 										{/if}
 									{:catch error}
-										<p class="progress-error">{error.message}</p>
+										{(() => {
+											throw error;
+										})()}
 									{/await}
 								</svelte:boundary>
 							{:else}
@@ -268,7 +276,9 @@
 							{/if}
 						</p>
 					{:catch error}
-						<p class="progress-error">{error.message}</p>
+						{(() => {
+							throw error;
+						})()}
 					{/await}
 				</svelte:boundary>
 			</Card.Content>
@@ -314,7 +324,8 @@
 							<label class="partial-start-cta">
 								<Checkbox bind:checked={allowPartialStart} />
 								<span>
-									Allow partial start (min {MIN_PARTIAL_START_TRACKS} tracks). We'll keep loading more in the background.
+									Allow partial start (min {MIN_PARTIAL_START_TRACKS} tracks). We'll keep loading more
+									in the background.
 								</span>
 							</label>
 						{:else}
@@ -339,8 +350,8 @@
 					{#if startWarning}
 						<p class="start-warning">{startWarning}</p>
 					{/if}
-				<Button size="lg" onclick={startGame} class="start-button" disabled={!canNavigateToGame}>
-					{canNavigateToGame ? 'Go to Player Setup' : 'Waiting for tracks…'}
+					<Button size="lg" onclick={startGame} class="start-button" disabled={!canNavigateToGame}>
+						{canNavigateToGame ? 'Go to Player Setup' : 'Waiting for tracks…'}
 					</Button>
 				</div>
 			</Card.Content>
