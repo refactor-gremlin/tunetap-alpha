@@ -4,7 +4,7 @@ import { defineConfig } from 'prisma/config';
 // Load environment variables from .env if present so Prisma commands get defaults.
 loadEnv();
 
-const databaseUrl = process.env.DATABASE_URL ?? 'file:./dev.db';
+const databaseUrl = process.env.DATABASE_URL ?? 'file:./database.db';
 
 export default defineConfig({
 	schema: 'prisma/schema.prisma',

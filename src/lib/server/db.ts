@@ -6,23 +6,14 @@ import { buildTrackArtistKey } from '$lib/utils/release-key';
 const require = createRequire(import.meta.url);
 const { PrismaClient } = require('@prisma/client');
 
-const DEFAULT_DATABASE_URL = 'file:./prisma/dev.db';
-const globalRuntime = globalThis as typeof globalThis & {
-	__tunetapDbWarningLogged?: boolean;
-};
-
-if (!process.env.DATABASE_URL) {
-	if (!globalRuntime.__tunetapDbWarningLogged) {
-		console.warn(
-			`[DB] DATABASE_URL not set. Falling back to local SQLite at ${DEFAULT_DATABASE_URL}`
-		);
-		globalRuntime.__tunetapDbWarningLogged = true;
-	}
-	process.env.DATABASE_URL = DEFAULT_DATABASE_URL;
-}
+const DEFAULT_DATABASE_URL = 'file:./database.db';
+const databaseUrl = process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL;
 
 // Singleton Prisma client instance
-const prisma = new PrismaClient();
+// For Prisma 7: datasource URL is passed to PrismaClient constructor
+const prisma = new PrismaClient({
+	datasourceUrl: databaseUrl
+});
 
 /**
  * Get cached release date from database
