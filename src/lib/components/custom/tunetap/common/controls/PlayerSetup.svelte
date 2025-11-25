@@ -23,12 +23,13 @@
 	} = $props();
 
 	let queueSize = $state(0);
-	let isLoading = $state(true);
+	let isLoading = $state(false);
 	let tracksWithReleaseDates = $state(0);
 	let progressPercentage = $state(0);
 	let allowPartialStart = $state(defaultAllowPartialStart);
 	let timeRemainingString = $state('');
 	let hasHydratedPartialPref = $state(false);
+	let hasInitialQueueCheck = $state(false);
 
 	$effect(() => {
 		if (!hasHydratedPartialPref) {
@@ -52,7 +53,10 @@
 			100,
 			Math.round((playableTracksCount / RECOMMENDED_PLAYABLE_TRACKS) * 100)
 		);
-		isLoading = isUrgentLoading;
+		// Only show loading after we've done initial queue check and confirmed there's work pending
+		if (hasInitialQueueCheck) {
+			isLoading = isUrgentLoading;
+		}
 	});
 
 onMount(() => {
@@ -61,11 +65,19 @@ onMount(() => {
 			const status = await getQueueStatus();
 			queueSize = status.pendingCount;
 			timeRemainingString = status.timeRemainingString;
+			if (!hasInitialQueueCheck) {
+				hasInitialQueueCheck = true;
+			}
 		} catch (error) {
 			console.error('Error fetching queue status:', error);
+			// Still mark as checked even on error to avoid stuck state
+			if (!hasInitialQueueCheck) {
+				hasInitialQueueCheck = true;
+			}
 		}
 	};
 
+	// Fetch immediately on mount
 	fetchStatus();
 	const interval = setInterval(fetchStatus, 1000);
 	return () => clearInterval(interval);
@@ -92,98 +104,58 @@ onMount(() => {
 			
 			<div class="track-status">
 				<p class="tracks-info">
-					{playableTracksCount} playable tracks ready
-					<span class="tracks-info-sub">Goal: {RECOMMENDED_PLAYABLE_TRACKS}</span>
-					{#if totalTracksCount}
-						<span class="tracks-info-sub">
-							({playableTracksCount} of {totalTracksCount} playlist tracks)
-						</span>
+					<strong>{playableTracksCount}</strong> / {RECOMMENDED_PLAYABLE_TRACKS} playable tracks
+					{#if totalTracksCount && totalTracksCount !== playableTracksCount}
+						<span class="tracks-info-sub">({totalTracksCount} total in playlist)</span>
 					{/if}
 				</p>
 
 				{#if isLoading}
 					<div class="loading-status">
-						<p class="loading-text">
-							Fetching release dates: {tracksWithReleaseDates}/{RECOMMENDED_PLAYABLE_TRACKS} complete
-						</p>
 						<Progress value={progressPercentage} class="progress-bar" />
 						<p class="queue-info">
-							{queueSize} tracks waiting in queue
-							{#if queueSize > 0}
+							{queueSize} tracks in queue
+							{#if queueSize > 0 && timeRemainingString}
 								(~{timeRemainingString} remaining)
 							{/if}
 						</p>
 					</div>
-				{:else if queueSize > 0 && tracksWithReleaseDates >= RECOMMENDED_PLAYABLE_TRACKS}
-					<div class="complete-status">
-						<p class="complete-text">
-							✓ Ready to start ({tracksWithReleaseDates} tracks ready)
-						</p>
-						<p class="queue-info-subtle">
-							Background processing active: {queueSize} tracks in low priority queue.
-						</p>
-					</div>
-				{:else if queueSize === 0 && !hasRecommendedTracks}
-					<div class="complete-status">
-						<p class="complete-text">All release dates processed for now</p>
-						<p class="queue-info-subtle">We'll keep checking for new data automatically.</p>
-					</div>
+				{:else if hasRecommendedTracks}
+					<p class="ready-text">✓ Ready to play!</p>
+				{:else if queueSize === 0}
+					<p class="queue-info-subtle">All available release dates loaded.</p>
 				{/if}
-
-				<p class="recommended-hint">
-					Recommended: {RECOMMENDED_PLAYABLE_TRACKS} playable tracks for a full-length game.
-					{#if !hasRecommendedTracks}
-						We can start early and keep loading in the background.
-					{/if}
-				</p>
 			</div>
 			
 			<div class="start-section">
-				{#if !canStartGame && playableTracksCount > 0}
-					<div class="start-requirements">
-						<p class="requirement-text">
-							Need at least {RECOMMENDED_PLAYABLE_TRACKS} playable tracks for the full experience
-						</p>
-						{#if isLoading}
-							<p class="loading-hint">Please wait for release dates to finish loading...</p>
-						{/if}
-
-						{#if canOfferPartialStart}
-							<div class="partial-start-option">
-								<label class="partial-start-label">
-									<Checkbox bind:checked={allowPartialStart} />
-									<span>
-										Allow partial start with {playableTracksCount} tracks
-										(<strong>min {MIN_PARTIAL_START_TRACKS}</strong>)
-									</span>
-								</label>
-								<p class="partial-start-hint">We'll keep loading more tracks while you play.</p>
-							</div>
-						{/if}
-					</div>
-				{:else if playableTracksCount === 0}
+				{#if playableTracksCount === 0}
 					<div class="no-tracks-warning">
-						<p class="warning-text">⚠️ No playable tracks found. Please try a different playlist.</p>
+						<p class="warning-text">⚠️ No playable tracks found yet.</p>
+					</div>
+				{:else if canOfferPartialStart}
+					<div class="partial-start-option">
+						<label class="partial-start-label">
+							<Checkbox bind:checked={allowPartialStart} />
+							<span>Start early with {playableTracksCount} tracks</span>
+						</label>
+						<p class="partial-start-hint">More tracks will load while you play.</p>
 					</div>
 				{/if}
 
 				<Button
 					size="lg"
 					onclick={onStartGame}
-					disabled={!canStartGame || (!hasRecommendedTracks && !allowPartialStart)}
+					disabled={!canStartGame}
 					class="start-button"
 				>
-					{#if !hasRecommendedTracks && !allowPartialStart}
-						Waiting for more tracks...
+					{#if playableTracksCount === 0}
+						Waiting for tracks...
 					{:else if !canStartGame}
-						Not Enough Tracks
-					{:else if allowPartialStart && !hasRecommendedTracks}
-						Start with {playableTracksCount} tracks
+						Need {MIN_PARTIAL_START_TRACKS}+ tracks to start
 					{:else}
 						Start Game
 					{/if}
 				</Button>
-				<p class="pass-device-hint">Tap start, then follow on-screen prompts to hand the device to each player.</p>
 			</div>
 		</div>
 	</Card.Content>
@@ -225,17 +197,16 @@ onMount(() => {
 	.track-status {
 		display: flex;
 		flex-direction: column;
-		gap: 1rem;
+		gap: 0.75rem;
 		padding: 1rem;
 		background-color: var(--muted);
 		border-radius: calc(var(--radius) - 2px);
+		text-align: center;
 	}
 
 	.tracks-info {
-		text-align: center;
-		color: var(--muted-foreground);
+		color: var(--foreground);
 		margin: 0;
-		font-weight: 500;
 	}
 
 	.tracks-info-sub {
@@ -243,19 +214,13 @@ onMount(() => {
 		font-size: 0.8rem;
 		color: var(--muted-foreground);
 		font-weight: 400;
+		margin-top: 0.25rem;
 	}
 
 	.loading-status {
 		display: flex;
 		flex-direction: column;
-		gap: 0.75rem;
-	}
-
-	.loading-text {
-		margin: 0;
-		font-size: 0.875rem;
-		color: var(--foreground);
-		text-align: center;
+		gap: 0.5rem;
 	}
 
 	:global(.progress-bar) {
@@ -266,56 +231,24 @@ onMount(() => {
 		margin: 0;
 		font-size: 0.75rem;
 		color: var(--muted-foreground);
-		text-align: center;
-	}
-
-	.complete-status {
-		text-align: center;
-		padding: 0.5rem;
-	}
-
-	.complete-text {
-		margin: 0;
-		color: var(--primary);
-		font-weight: 500;
 	}
 
 	.queue-info-subtle {
-		margin: 0.25rem 0 0 0;
+		margin: 0;
 		font-size: 0.75rem;
 		color: var(--muted-foreground);
 	}
 
-	.recommended-hint {
-		margin: 0.5rem 0 0 0;
-		font-size: 0.85rem;
-		text-align: center;
-		color: var(--muted-foreground);
+	.ready-text {
+		margin: 0;
+		color: var(--primary);
+		font-weight: 500;
 	}
 
 	.start-section {
 		display: flex;
 		flex-direction: column;
 		gap: 1rem;
-	}
-
-	.start-requirements {
-		text-align: center;
-		padding: 1rem;
-		background-color: var(--muted);
-		border-radius: calc(var(--radius) - 2px);
-	}
-
-	.requirement-text {
-		margin: 0;
-		color: var(--foreground);
-		font-weight: 500;
-	}
-
-	.loading-hint {
-		margin: 0.5rem 0 0 0;
-		font-size: 0.875rem;
-		color: var(--muted-foreground);
 	}
 
 	.no-tracks-warning {
@@ -336,15 +269,7 @@ onMount(() => {
 		width: 100%;
 	}
 
-	.pass-device-hint {
-		margin: 0;
-		text-align: center;
-		font-size: 0.85rem;
-		color: var(--muted-foreground);
-	}
-
 	.partial-start-option {
-		margin-top: 1rem;
 		padding: 1rem;
 		background-color: hsl(var(--primary) / 0.05);
 		border: 1px solid hsl(var(--primary) / 0.2);
@@ -365,6 +290,5 @@ onMount(() => {
 		margin: 0.5rem 0 0 0;
 		font-size: 0.75rem;
 		color: var(--muted-foreground);
-		font-style: italic;
 	}
 </style>

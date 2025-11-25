@@ -293,18 +293,6 @@
 		</Card.Root>
 	{/if}
 
-	{#if tracks}
-		<Card.Root class="tracks-preview">
-			<Card.Content>
-				<p>Found {tracks.length} tracks</p>
-				<p>{playableAudioCount} tracks with audio (playable)</p>
-				{#if latestResult?.error}
-					<p class="progress-error">{latestResult.error}</p>
-				{/if}
-			</Card.Content>
-		</Card.Root>
-	{/if}
-
 	{#if showPlayerCountSelection && tracks}
 		<Card.Root class="player-selection">
 			<Card.Header>
@@ -420,13 +408,6 @@
 		text-align: center;
 		font-size: 0.9rem;
 		color: var(--muted-foreground);
-	}
-
-	.progress-error {
-		margin-top: 0.75rem;
-		color: var(--destructive);
-		font-weight: 600;
-		text-align: center;
 	}
 
 	.progress-summary {
