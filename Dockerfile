@@ -15,6 +15,8 @@ COPY package.json package-lock.json ./
 COPY prisma ./prisma
 
 # Install all dependencies (dev included) and generate Prisma client artifacts
+# DATABASE_URL is required for prisma generate (dummy value, actual DB created at runtime)
+ENV DATABASE_URL=file:/app/data/database.db
 RUN npm ci --ignore-scripts \
 	&& npx prisma generate
 
