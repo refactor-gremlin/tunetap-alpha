@@ -38,8 +38,15 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/build ./build
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
+COPY docker-entrypoint.sh ./
+
+# Set database URL to persistent location (can be overridden at runtime)
+ENV DATABASE_URL=file:/app/data/database.db
+
+# Make entrypoint executable
+RUN chmod +x docker-entrypoint.sh
 
 EXPOSE 3000
 
-# Adapter-node entrypoint
-CMD ["node", "build"]
+# Use entrypoint to run migrations on startup
+ENTRYPOINT ["./docker-entrypoint.sh"]
