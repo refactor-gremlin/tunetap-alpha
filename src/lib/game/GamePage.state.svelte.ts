@@ -5,6 +5,7 @@ import { tick } from 'svelte';
 import { useEventListener } from 'runed';
 import { goto } from '$app/navigation';
 import type { Page } from '@sveltejs/kit';
+import { isTrackPlayable, needsReleaseDate } from '$lib/utils/track';
 
 import { getQueueStatus as getQueueStatusRemote } from '../../routes/game/musicbrainz.remote';
 export const getQueueStatus = getQueueStatusRemote;
@@ -23,9 +24,7 @@ export class GamePageState {
 
 	// Game Engine
 	gameEngine = $state<TuneTapGame | null>(null);
-	playableTracks = $derived(
-		this.tracks.filter((t) => t.firstReleaseDate && t.audioUrl && t.status === 'found')
-	);
+	playableTracks = $derived(this.tracks.filter(isTrackPlayable));
 
 	// UI state
 	showReleaseDates = $state(false);
@@ -118,6 +117,7 @@ export class GamePageState {
 
 		let loadedTracks: Track[] | null = null;
 		let loadedPlayerCount = 2;
+		let loadedFromSessionStorage = false;
 
 		try {
 			const tracksData = sessionStorage.getItem('tunetap_tracks');
@@ -126,17 +126,16 @@ export class GamePageState {
 			const showArtistNameData = sessionStorage.getItem('tunetap_showArtistName');
 			const allowPartialStartData = sessionStorage.getItem('tunetap_allowPartialStart');
 
-			if (tracksData) loadedTracks = JSON.parse(tracksData);
+			if (tracksData) {
+				loadedTracks = JSON.parse(tracksData);
+				loadedFromSessionStorage = true;
+			}
 			if (playerCountData) loadedPlayerCount = parseInt(playerCountData, 10);
 			if (showSongNameData) this.showSongName = showSongNameData === 'true';
 			if (showArtistNameData) this.showArtistName = showArtistNameData === 'true';
 			if (allowPartialStartData) this.allowPartialStartPreference = allowPartialStartData === 'true';
 
-			sessionStorage.removeItem('tunetap_tracks');
-			sessionStorage.removeItem('tunetap_playerCount');
-			sessionStorage.removeItem('tunetap_showSongName');
-			sessionStorage.removeItem('tunetap_showArtistName');
-			sessionStorage.removeItem('tunetap_allowPartialStart');
+			// Don't clear sessionStorage here - wait until game successfully initializes
 		} catch (error) {
 			console.error('[Game] Error loading from sessionStorage:', error);
 		}
@@ -167,9 +166,26 @@ export class GamePageState {
 			this.playerCount = loadedPlayerCount;
 			this.playerNames = Array(this.playerCount).fill('').map((_, i) => `Player ${i + 1}`);
 			this.initializeReleaseMap(loadedTracks);
+
+			// Clear sessionStorage only after successful initialization
+			if (loadedFromSessionStorage) {
+				this.clearSessionStorage();
+			}
 		}
 		
 		this.updateScrollState();
+	}
+
+	private clearSessionStorage() {
+		try {
+			sessionStorage.removeItem('tunetap_tracks');
+			sessionStorage.removeItem('tunetap_playerCount');
+			sessionStorage.removeItem('tunetap_showSongName');
+			sessionStorage.removeItem('tunetap_showArtistName');
+			sessionStorage.removeItem('tunetap_allowPartialStart');
+		} catch (error) {
+			console.error('[Game] Error clearing sessionStorage:', error);
+		}
 	}
 
 	private initializeReleaseMap(tracks: Track[]) {
@@ -185,16 +201,7 @@ export class GamePageState {
 	getTracksNeedingReleaseDates() {
 		return this.tracks
 			.map((track, index) => ({ track, index }))
-			.filter(({ track }) => this.trackNeedsReleaseDate(track));
-	}
-
-	trackNeedsReleaseDate(track: Track) {
-		return (
-			track.status === 'found' &&
-			!!track.audioUrl &&
-			!track.firstReleaseDate &&
-			track.artists.length > 0
-		);
+			.filter(({ track }) => needsReleaseDate(track));
 	}
 
 	applyReleaseDateById(trackId: string, releaseDate: string | undefined) {

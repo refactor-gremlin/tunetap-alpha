@@ -334,6 +334,9 @@ npx prisma studio
 {/if}
 ```
 
+Unless you dont need a loading state because the data changes a lot then use the pattern like in - `.cursor/rules/sveltekit-remote-functions.mdc`: Remote functions guide
+
+
 ### Managing Game State
 
 ```typescript

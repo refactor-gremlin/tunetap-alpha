@@ -1,6 +1,7 @@
 import type { Track } from '$lib/types';
 import type { Player, PlacementResult, GameStatus, PlacementType } from '$lib/types/tunetap.js';
 import { getReleaseYear } from '$lib/utils/timeline.js';
+import { isTrackPlayable } from '$lib/utils/track.js';
 
 export class TuneTapGame {
 	// State
@@ -174,7 +175,8 @@ export class TuneTapGame {
 		return { correct: isCorrect && isChronological, correctPosition: actualCorrectIndex };
 	}
 
-	// Helper function to place a track for a specific player (for auto-placement)
+	// Helper function to place a track for a specific player (for auto-placement during init)
+	// Note: This does NOT increment score - it's only for initial track placement
 	placeTrackForPlayer(
 		playerIndex: number,
 		track: Track,
@@ -189,9 +191,9 @@ export class TuneTapGame {
 			result.correctPosition >= 0 ? result.correctPosition : player.timeline.length;
 		player.timeline.splice(insertIndex, 0, track);
 
-		if (result.correct) {
-			player.score += 1;
-		}
+		// Note: We intentionally do NOT increment score here.
+		// This method is used for initial auto-placement where scoring doesn't apply.
+		// Score increments happen in handlePlacementResult() for actual gameplay.
 
 		return result;
 	}
@@ -408,7 +410,7 @@ export class TuneTapGame {
 	}
 
 	private isTrackPlayable(track: Track) {
-		return Boolean(track.firstReleaseDate && track.audioUrl && track.status === 'found');
+		return isTrackPlayable(track);
 	}
 
 	private isTrackAlreadyUsed(trackId: string) {

@@ -12,6 +12,7 @@
 	import { onDestroy } from 'svelte';
 	import { createBoundaryErrorHandler } from '$lib/utils/error-boundary';
 	import ErrorState from '$lib/components/custom/common/ErrorState.svelte';
+	import { hasAudioSource } from '$lib/utils/track';
 
 	let playlistUrl = $state('');
 	let tracks = $state<Track[] | null>(null);
@@ -32,8 +33,12 @@
 	let progressFetchError = $state<string | null>(null);
 	let progressTimer: ReturnType<typeof setTimeout> | null = null;
 	let progressRetryCount = $state(0);
-	let mounted = true;
+	let abortController: AbortController | null = null;
 	let isSubmitting = $state(false);
+
+	function isAborted(): boolean {
+		return abortController?.signal.aborted ?? false;
+	}
 
 	function clearProgressTimer() {
 		if (progressTimer) {
@@ -43,7 +48,7 @@
 	}
 
 	function refreshProgress() {
-		if (!jobState || latestResult) {
+		if (!jobState || latestResult || isAborted()) {
 			return;
 		}
 		const remoteQuery = getPlaylistProgress({
@@ -53,12 +58,12 @@
 		progressPromise = remoteQuery;
 		remoteQuery
 			.then((result) => {
-				if (!mounted) return result;
+				if (isAborted()) return result;
 				progressRetryCount = 0;
 				return result;
 			})
 			.catch((error) => {
-				if (!mounted) return null;
+				if (isAborted()) return null;
 				progressRetryCount += 1;
 				const errorMessage =
 					error && typeof error === 'object' && 'message' in error
@@ -72,15 +77,14 @@
 					};
 					progressFetchError = errorMessage;
 					clearProgressTimer();
-					// Re-throw to trigger the outer catch UI when mounted
-					if (mounted) {
+					if (!isAborted()) {
 						return Promise.reject(error);
 					}
 				}
 				return null;
 			})
 			.finally(() => {
-				if (!mounted) return;
+				if (isAborted()) return;
 				clearProgressTimer();
 				if (!latestResult && progressRetryCount < MAX_PROGRESS_RETRIES) {
 					progressTimer = setTimeout(() => refreshProgress(), 500);
@@ -96,7 +100,7 @@
 	};
 
 	const playableAudioCount = $derived(
-		tracks ? tracks.filter((t) => t.status === 'found' && !!t.audioUrl).length : 0
+		tracks ? tracks.filter(hasAudioSource).length : 0
 	);
 	const meetsRecommendedThreshold = $derived(playableAudioCount >= RECOMMENDED_PLAYABLE_TRACKS);
 	const canUsePartialStart = $derived(playableAudioCount >= MIN_PARTIAL_START_TRACKS);
@@ -108,6 +112,11 @@
 	function beginPlaylistProcessing() {
 		const trimmed = playlistUrl.trim();
 		if (!trimmed || isProcessing) return;
+
+		// Abort any previous processing
+		abortController?.abort();
+		abortController = new AbortController();
+
 		isSubmitting = true;
 		const newJobId = createClientJobId();
 		jobState = { jobId: newJobId, playlistUrl: trimmed };
@@ -124,7 +133,7 @@
 		refreshProgress();
 		command
 			.then((result) => {
-				if (!mounted) return result;
+				if (isAborted()) return result;
 				clearProgressTimer();
 				isSubmitting = false;
 				if (result.success) {
@@ -145,7 +154,7 @@
 				return result;
 			})
 			.catch((error) => {
-				if (!mounted) return;
+				if (isAborted()) return;
 				clearProgressTimer();
 				isSubmitting = false;
 				const message =
@@ -158,7 +167,6 @@
 					message: 'Playlist processing failed',
 					error: message
 				};
-				// Re-throw to trigger the error boundary
 				throw error;
 			});
 	}
@@ -196,7 +204,7 @@
 	}
 
 	onDestroy(() => {
-		mounted = false;
+		abortController?.abort();
 		clearProgressTimer();
 	});
 </script>

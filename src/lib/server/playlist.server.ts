@@ -126,9 +126,7 @@ function getArtistsFromSpotifyTrack(spotifyTrack: SpotifyTrack): string[] {
 	return artists;
 }
 
-function buildReleaseDateCacheKey(trackName: string, artistName: string) {
-	return buildTrackArtistKey(trackName, artistName);
-}
+
 
 async function buildReleaseDateCacheMap(spotifyTracks: SpotifyTrack[]) {
 	const lookupInputs = spotifyTracks
@@ -171,7 +169,7 @@ function queueTracksForMusicBrainz(
 			return;
 		}
 
-		const cacheKey = buildReleaseDateCacheKey(trackName, primaryArtist);
+		const cacheKey = buildTrackArtistKey(trackName, primaryArtist);
 		if (cachedReleaseDates?.has(cacheKey)) {
 			skipped += 1;
 			return;
@@ -251,7 +249,7 @@ export async function processPlaylist(
 				);
 
 				for (const { track, primaryArtist } of tracksNeedingDates) {
-					const key = buildReleaseDateCacheKey(track.name, primaryArtist as string);
+					const key = buildTrackArtistKey(track.name, primaryArtist as string);
 					const cachedDate = cachedDates.get(key) || undefined;
 					if (cachedDate) {
 						track.firstReleaseDate = cachedDate;
@@ -517,7 +515,7 @@ export async function processPlaylist(
 
 		const primaryArtist = artists[0];
 		if (trackName && primaryArtist) {
-			const cacheKey = buildReleaseDateCacheKey(trackName, primaryArtist);
+			const cacheKey = buildTrackArtistKey(trackName, primaryArtist);
 			if (releaseDates.has(cacheKey)) {
 				const cachedDate = releaseDates.get(cacheKey) || undefined;
 				if (cachedDate) {
