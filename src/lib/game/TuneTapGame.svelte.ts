@@ -271,9 +271,14 @@ export class TuneTapGame {
 		if (trackIndexToRemove > -1) {
 			this.availableTracks.splice(trackIndexToRemove, 1);
 		}
+
+		// Set roundResult BEFORE changing gameStatus to ensure proper modal rendering
 		this.roundResult = result;
+		
+		// Change gameStatus after roundResult is set to prevent race conditions
 		this.gameStatus = 'roundEnd';
 
+		// Check win condition after all state is properly set
 		if (player.score >= 10) {
 			setTimeout(() => this.endGame(), 2000);
 		}

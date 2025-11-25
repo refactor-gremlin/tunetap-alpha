@@ -335,7 +335,7 @@
 		</div>
 	</div>
 
-	{#if gameStatus === 'roundEnd' && roundResult && currentPlayer && !showHandoff}
+	{#if gameStatus === 'roundEnd' && roundResult && currentPlayer}
 		<ActiveView.RoundResultModal
 			result={roundResult}
 			{currentPlayer}

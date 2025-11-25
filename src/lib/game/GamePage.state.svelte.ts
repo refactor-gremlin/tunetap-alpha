@@ -384,6 +384,14 @@ export class GamePageState {
 		this.gameEngine.placeTrackFromGap(gapIndex);
 		this.showReleaseDates = true;
 		this.exactYearBonusAwarded = null;
+		// Reset UI state after placement
+		this.showDropButton = false;
+		this.activeGapIndex = null;
+		this.activeCardIndex = null;
+		if (this.previousActiveElement) {
+			this.previousActiveElement.style.opacity = '0.5';
+			this.previousActiveElement = null;
+		}
 	}
 
 	placeTrackSameYear(cardIndex: number) {
@@ -391,10 +399,19 @@ export class GamePageState {
 		this.gameEngine.placeTrackSameYear(cardIndex);
 		this.showReleaseDates = true;
 		this.exactYearBonusAwarded = null;
+		// Reset UI state after placement
+		this.showDropButton = false;
+		this.activeGapIndex = null;
+		this.activeCardIndex = null;
+		if (this.previousActiveElement) {
+			this.previousActiveElement.style.opacity = '0.5';
+			this.previousActiveElement = null;
+		}
 	}
 
 	nextTurn() {
 		if (!this.gameEngine) return;
+		
 		// Show handoff screen if multiplayer
 		if (this.gameEngine.players.length > 1) {
 			this.showHandoff = true;
@@ -405,7 +422,11 @@ export class GamePageState {
 
 	completeNextTurn() {
 		if (!this.gameEngine) return;
+		
+		// Advance the game state first
 		this.gameEngine.nextTurn();
+		
+		// Reset game UI state
 		this.blurred = true;
 		this.showSongName = false;
 		this.showArtistName = false;
@@ -466,17 +487,27 @@ export class GamePageState {
 		}
 
 		const centerX = window.innerWidth / 2;
-		const children = Array.from(this.timelineReel.children);
-		let closestChild: Element | null = null;
+		const elements = Array.from(
+			this.timelineReel.querySelectorAll<HTMLElement>('.timeline-card, .timeline-gap')
+		);
+
+		if (elements.length === 0) {
+			this.activeGapIndex = null;
+			this.activeCardIndex = null;
+			this.showDropButton = false;
+			return;
+		}
+
+		let closestElement: HTMLElement | null = null;
 		let minDistance = Infinity;
 
-		for (const child of children) {
-			const rect = child.getBoundingClientRect();
+		for (const element of elements) {
+			const rect = element.getBoundingClientRect();
 			const childCenterX = rect.left + rect.width / 2;
 			const distance = Math.abs(centerX - childCenterX);
 			if (distance < minDistance) {
 				minDistance = distance;
-				closestChild = child;
+				closestElement = element;
 			}
 		}
 
@@ -484,25 +515,27 @@ export class GamePageState {
 			this.previousActiveElement.style.opacity = '0.5';
 		}
 
-		if (closestChild) {
-			if (closestChild.classList.contains('timeline-card')) {
-				(closestChild as HTMLElement).style.opacity = '1';
-				this.previousActiveElement = closestChild as HTMLElement;
+		if (closestElement) {
+			if (closestElement.classList.contains('timeline-card')) {
+				closestElement.style.opacity = '1';
+				this.previousActiveElement = closestElement;
 			} else if (this.previousActiveElement) {
 				this.previousActiveElement.style.opacity = '0.5';
 				this.previousActiveElement = null;
 			}
 
-			if (closestChild.classList.contains('timeline-gap')) {
-				const gapIndex = parseInt((closestChild as HTMLElement).dataset.gapIndex || '0', 10);
+			if (closestElement.classList.contains('timeline-gap')) {
+				const gapIndex = parseInt(closestElement.dataset.gapIndex || '0', 10);
 				this.activeGapIndex = gapIndex;
 				this.activeCardIndex = null;
 				this.showDropButton = true;
-				for (const child of children) {
-					child.classList.toggle('active', child === closestChild);
-				}
-			} else if (closestChild.classList.contains('timeline-card')) {
-				const cardIndex = parseInt((closestChild as HTMLElement).dataset.index || '-1', 10);
+				elements.forEach((element) => {
+					if (element.classList.contains('timeline-gap')) {
+						element.classList.toggle('active', element === closestElement);
+					}
+				});
+			} else if (closestElement.classList.contains('timeline-card')) {
+				const cardIndex = parseInt(closestElement.dataset.index || '-1', 10);
 				if (cardIndex >= 0) {
 					this.activeCardIndex = cardIndex;
 					this.activeGapIndex = null;
@@ -512,30 +545,30 @@ export class GamePageState {
 					this.activeGapIndex = null;
 					this.showDropButton = false;
 				}
-				for (const child of children) {
-					if (child.classList.contains('timeline-gap')) {
-						child.classList.remove('active');
+				elements.forEach((element) => {
+					if (element.classList.contains('timeline-gap')) {
+						element.classList.remove('active');
 					}
-				}
+				});
 			} else {
 				this.activeGapIndex = null;
 				this.activeCardIndex = null;
 				this.showDropButton = false;
-				for (const child of children) {
-					if (child.classList.contains('timeline-gap')) {
-						child.classList.remove('active');
+				elements.forEach((element) => {
+					if (element.classList.contains('timeline-gap')) {
+						element.classList.remove('active');
 					}
-				}
+				});
 			}
 		} else {
 			this.activeGapIndex = null;
 			this.activeCardIndex = null;
 			this.showDropButton = false;
-			for (const child of children) {
-				if (child.classList.contains('timeline-gap')) {
-					child.classList.remove('active');
+			elements.forEach((element) => {
+				if (element.classList.contains('timeline-gap')) {
+					element.classList.remove('active');
 				}
-			}
+			});
 		}
 	}
 }
