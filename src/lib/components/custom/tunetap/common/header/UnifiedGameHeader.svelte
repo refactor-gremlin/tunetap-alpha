@@ -28,6 +28,7 @@ Usage:
 	import { Button } from '$lib/components/shadncn-ui/button/index.js';
 	import { useInterval } from 'runed';
 	import { rethrow } from '$lib/utils/error-boundary';
+	import { Spring, prefersReducedMotion } from 'svelte/motion';
 
 	type QueueStatus = {
 		pendingCount: number;
@@ -88,6 +89,31 @@ Usage:
 		callback: () => triggerQueueStatusFetch()
 	});
 
+	const scoreSprings = new Map<string, Spring<number>>();
+	const reducedMotion = $derived(prefersReducedMotion.current);
+
+	function getPlayerKey(player: Player, index: number) {
+		return `${player.name}-${index}`;
+	}
+
+	function getScoreSpring(player: Player, index: number) {
+		const key = getPlayerKey(player, index);
+		let spring = scoreSprings.get(key);
+		if (!spring) {
+			spring = new Spring(player.score, {
+				stiffness: 0.3,
+				damping: 0.65
+			});
+			scoreSprings.set(key, spring);
+		}
+		if (reducedMotion) {
+			spring.set(player.score, { instant: true });
+		} else {
+			spring.target = player.score;
+		}
+		return spring;
+	}
+
 	$effect(() => {
 		if (!queueStatusFetcher) {
 			queueInterval.pause();
@@ -96,6 +122,15 @@ Usage:
 		}
 		triggerQueueStatusFetch();
 		queueInterval.resume();
+	});
+
+	$effect(() => {
+		const activeKeys = new Set(players.map((player, index) => getPlayerKey(player, index)));
+		for (const key of scoreSprings.keys()) {
+			if (!activeKeys.has(key)) {
+				scoreSprings.delete(key);
+			}
+		}
 	});
 </script>
 
@@ -118,8 +153,7 @@ Usage:
 					<Button
 						size="sm"
 						variant="secondary"
-						onclick={onPlay}
-						disabled={isPlaying}
+						onclick={isPlaying ? onStop : onPlay}
 						class="play-button"
 					>
 						{isPlaying ? '⏸ Pause' : '▶ Play'}
@@ -152,22 +186,28 @@ Usage:
 			<div class="scores-section">
 				{#each players as player, index}
 					{@const status = getStatus(index)}
+					{@const isCloseToWin = player.score >= 7}
+					{@const scoreSpring = getScoreSpring(player, index)}
 					<div
 						class="player-badge"
 						class:current={status === 'current'}
 						class:next={status === 'next'}
+						class:close-to-win={isCloseToWin}
 					>
 						<span class="badge-name">{player.name}</span>
-						<Badge
-							variant={status === 'current'
-								? 'default'
-								: status === 'next'
-									? 'secondary'
-									: 'outline'}
-							class="score-badge"
-						>
-							{player.score}/10
-						</Badge>
+						<div class="score-progress">
+							{#each Array(10) as _, i}
+								{@const fillAmount = Math.min(Math.max(scoreSpring.current - i, 0), 1)}
+								<div
+									class="progress-dot"
+									class:filled={fillAmount >= 0.99}
+									style={`--dot-scale: ${1 + fillAmount * 0.2}; --dot-opacity: ${0.35 + fillAmount * 0.65};`}
+								></div>
+							{/each}
+						</div>
+						{#if isCloseToWin && status === 'current'}
+							<span class="win-hint">{10 - player.score} to win!</span>
+						{/if}
 					</div>
 				{/each}
 			</div>
@@ -311,6 +351,20 @@ Usage:
 		opacity: 0.85;
 	}
 
+	.player-badge.close-to-win {
+		animation: pulse-badge 1.5s ease-in-out infinite;
+	}
+
+	@keyframes pulse-badge {
+		0%,
+		100% {
+			background-color: color-mix(in oklch, var(--primary-foreground) 15%, transparent);
+		}
+		50% {
+			background-color: color-mix(in oklch, var(--primary-foreground) 30%, transparent);
+		}
+	}
+
 	.badge-name {
 		font-size: 0.875rem;
 		font-weight: 600;
@@ -318,8 +372,45 @@ Usage:
 		white-space: nowrap;
 	}
 
-	:global(.score-badge) {
-		font-weight: bold;
+	.score-progress {
+		display: flex;
+		gap: 3px;
+		align-items: center;
+	}
+
+	.progress-dot {
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		background: color-mix(in oklch, var(--primary-foreground) 30%, transparent);
+		transition:
+			transform 0.25s cubic-bezier(0.25, 0.1, 0.25, 1),
+			opacity 0.25s ease,
+			background 0.2s ease,
+			box-shadow 0.2s ease;
+		transform: scale(var(--dot-scale, 1));
+		opacity: var(--dot-opacity, 0.5);
+	}
+
+	.progress-dot.filled {
+		background: var(--primary-foreground);
+		box-shadow: 0 0 4px var(--primary-foreground);
+	}
+
+	.win-hint {
+		font-size: 0.75rem;
+		font-weight: 700;
+		color: var(--primary-foreground);
+		animation: flash 0.8s ease-in-out infinite alternate;
+	}
+
+	@keyframes flash {
+		from {
+			opacity: 0.7;
+		}
+		to {
+			opacity: 1;
+		}
 	}
 
 	@keyframes pulse {
@@ -329,6 +420,14 @@ Usage:
 		}
 		50% {
 			transform: scale(1.1);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.turn-indicator,
+		.player-badge.close-to-win,
+		.win-hint {
+			animation: none;
 		}
 	}
 

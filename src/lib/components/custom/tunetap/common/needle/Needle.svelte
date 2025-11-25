@@ -19,6 +19,8 @@ Usage:
 <script lang="ts">
 	import type { GameStatus } from '$lib/types/tunetap.js';
 	import { Button } from '$lib/components/shadncn-ui/button/index.js';
+	import TargetIcon from '@lucide/svelte/icons/target';
+	import MapPinIcon from '@lucide/svelte/icons/map-pin';
 
 	let {
 		showDropButton = false,
@@ -39,7 +41,7 @@ Usage:
 
 <!-- Zone B: The Needle (Middle Anchor) -->
 <div class="zone-b-needle">
-	<div class="needle-indicator"></div>
+	<div class="needle-indicator" class:active={showDropButton && (activeGapIndex !== null || activeCardIndex !== null)}></div>
 	<div
 		class="drop-button-wrapper"
 		class:visible={showDropButton &&
@@ -58,8 +60,13 @@ Usage:
 			disabled={!showDropButton ||
 				(activeGapIndex === null && activeCardIndex === null) ||
 				gameStatus !== 'playing'}
+			class="place-button"
 		>
-			{activeCardIndex !== null ? 'Same Year?' : 'Place Here'}
+			{#if activeCardIndex !== null}
+				<TargetIcon size={18} aria-hidden="true" /> Same Year?
+			{:else}
+				<MapPinIcon size={18} aria-hidden="true" /> Place Here
+			{/if}
 		</Button>
 	</div>
 </div>
@@ -86,6 +93,25 @@ Usage:
 		box-shadow: 0 0 10px var(--needle-color);
 		/* Translate X -50% ensures the center of the needle aligns with left: 50% */
 		transform: translateX(-50%) translateY(2px);
+		transition:
+			width 0.15s ease,
+			box-shadow 0.15s ease;
+	}
+
+	.needle-indicator.active {
+		width: calc(var(--needle-width, 5px) * 1.5);
+		box-shadow: 0 0 20px var(--needle-color), 0 0 40px var(--needle-color);
+		animation: pulse-glow 1s ease-in-out infinite;
+	}
+
+	@keyframes pulse-glow {
+		0%,
+		100% {
+			box-shadow: 0 0 20px var(--needle-color), 0 0 40px var(--needle-color);
+		}
+		50% {
+			box-shadow: 0 0 30px var(--needle-color), 0 0 60px var(--needle-color);
+		}
 	}
 
 	.drop-button-wrapper {
@@ -104,5 +130,32 @@ Usage:
 	.drop-button-wrapper.visible {
 		opacity: 1;
 		transform: translateX(-50%) translateY(-10px);
+	}
+
+	:global(.place-button) {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		font-weight: 600;
+		animation: button-pop 0.2s ease-out;
+	}
+
+	@keyframes button-pop {
+		0% {
+			transform: scale(0.9);
+		}
+		50% {
+			transform: scale(1.05);
+		}
+		100% {
+			transform: scale(1);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.needle-indicator.active,
+		:global(.place-button) {
+			animation: none;
+		}
 	}
 </style>

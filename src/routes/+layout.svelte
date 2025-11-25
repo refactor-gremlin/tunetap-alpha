@@ -1,16 +1,17 @@
 <script lang="ts">
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
-	import { onMount } from 'svelte';
-	import { pwaInfo } from 'virtual:pwa-info';
-	import { ModeWatcher } from 'mode-watcher';
-	import PageContainer from '$lib/components/custom/PageContainer.svelte';
+import { onMount } from 'svelte';
+import { pwaInfo } from 'virtual:pwa-info';
+import { ModeWatcher } from 'mode-watcher';
+import PageContainer from '$lib/components/custom/PageContainer.svelte';
 
 	let { children } = $props();
 	const webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
+const shouldRegisterSw = pwaInfo && import.meta.env.PROD;
 
 	onMount(async () => {
-		if (!pwaInfo) {
+	if (!shouldRegisterSw) {
 			return;
 		}
 

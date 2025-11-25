@@ -18,6 +18,9 @@ Usage:
 -->
 <script lang="ts">
 	import type { Track } from '$lib/types.js';
+	import { Spring, prefersReducedMotion } from 'svelte/motion';
+	import { fade, fly } from 'svelte/transition';
+	import { cubicOut } from 'svelte/easing';
 
 	let {
 		currentTrack,
@@ -26,7 +29,9 @@ Usage:
 		showArtistName = false,
 		showReleaseDates = false,
 		blurred = true,
-		onRevealClick
+		onRevealClick,
+		onPlayClick,
+		onStopClick
 	}: {
 		currentTrack: Track | null;
 		isPlaying?: boolean;
@@ -35,15 +40,51 @@ Usage:
 		showReleaseDates?: boolean;
 		blurred?: boolean;
 		onRevealClick: () => void;
+		onPlayClick?: () => void;
+		onStopClick?: () => void;
 	} = $props();
+
+	function handleVinylClick() {
+		if (isPlaying) {
+			onStopClick?.();
+		} else {
+			onPlayClick?.();
+		}
+	}
+
+	const blurSpring = new Spring(5, {
+		stiffness: 0.22,
+		damping: 0.72
+	});
+
+	const reducedMotion = $derived(prefersReducedMotion.current);
+	const textRevealTransition = $derived(
+		reducedMotion ? { duration: 0, y: 0 } : { y: 12, duration: 220, easing: cubicOut }
+	);
+	const placeholderFade = $derived(reducedMotion ? { duration: 0 } : { duration: 200 });
+
+	$effect(() => {
+		const target = blurred ? 5 : 0;
+		if (reducedMotion) {
+			blurSpring.set(target, { instant: true });
+		} else {
+			blurSpring.target = target;
+		}
+	});
 </script>
 
 <div class="zone-a-stage">
 	<div class="stage-content">
 		{#if currentTrack}
-			<!-- Vinyl Record -->
-			<div class="vinyl-container" class:playing={isPlaying}>
-				<div class="vinyl-record">
+			<!-- Vinyl Record - Clickable for Play/Pause -->
+			<button
+				type="button"
+				class="vinyl-container"
+				class:playing={isPlaying}
+				onclick={handleVinylClick}
+				aria-label={isPlaying ? 'Pause track' : 'Play track'}
+			>
+				<div class="vinyl-record" style={`filter: blur(${blurSpring.current}px);`}>
 					{#if currentTrack.coverImage}
 						<img src={currentTrack.coverImage} alt={`${currentTrack.name} album cover`} />
 					{:else}
@@ -51,7 +92,14 @@ Usage:
 					{/if}
 					<div class="vinyl-center"></div>
 				</div>
-			</div>
+				<!-- Play/Pause Overlay -->
+				<div class="vinyl-overlay" class:visible={!isPlaying}>
+					<div class="play-icon">▶</div>
+				</div>
+				<div class="vinyl-overlay pause-overlay" class:visible={isPlaying}>
+					<div class="pause-icon">⏸</div>
+				</div>
+			</button>
 
 			<!-- Track Info -->
 			<button
@@ -60,20 +108,35 @@ Usage:
 				class:blurred
 				onclick={onRevealClick}
 				onkeydown={(e) => e.key === 'Enter' && onRevealClick()}
+				aria-label={blurred ? 'Tap to reveal track info' : 'Track info'}
 			>
 				{#if showSongName}
-					<div class="track-title">{currentTrack.name}</div>
+					<div class="track-title" in:fly={textRevealTransition}>{currentTrack.name}</div>
 				{/if}
 				{#if showArtistName}
-					<div class="track-artist">{currentTrack.artists.join(', ')}</div>
+					<div class="track-artist" in:fly={textRevealTransition}>{currentTrack.artists.join(', ')}</div>
 				{/if}
 				{#if !showSongName && !showArtistName}
-					<div class="track-placeholder">Tap to reveal</div>
+					<div class="track-placeholder" in:fade={placeholderFade}>
+						<span class="tap-icon">👆</span>
+						<span>Tap to reveal</span>
+					</div>
 				{/if}
 				{#if showReleaseDates && currentTrack.firstReleaseDate}
-					<div class="track-year">{currentTrack.firstReleaseDate.slice(0, 4)}</div>
+					<div class="track-year" in:fly={textRevealTransition}>
+						{currentTrack.firstReleaseDate.slice(0, 4)}
+					</div>
 				{/if}
 			</button>
+
+			<!-- Instruction hint -->
+			<div class="stage-hint">
+				{#if blurred}
+					Listen & place this track on your timeline
+				{:else}
+					Scroll timeline below to place this track
+				{/if}
+			</div>
 		{:else}
 			<div class="no-track-message">No track selected</div>
 		{/if}
@@ -108,6 +171,56 @@ Usage:
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		position: relative;
+		background: none;
+		border: none;
+		padding: 0;
+		cursor: pointer;
+		transition: transform 0.2s ease;
+	}
+
+	.vinyl-container:hover {
+		transform: scale(1.02);
+	}
+
+	.vinyl-container:active {
+		transform: scale(0.98);
+	}
+
+	.vinyl-overlay {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: rgba(0, 0, 0, 0.4);
+		border-radius: 50%;
+		opacity: 0;
+		transition: opacity 0.2s ease;
+		pointer-events: none;
+	}
+
+	.vinyl-overlay.visible {
+		opacity: 1;
+	}
+
+	.vinyl-container:hover .vinyl-overlay.visible {
+		opacity: 0.8;
+	}
+
+	.play-icon,
+	.pause-icon {
+		font-size: calc(var(--vinyl-size, 200px) / 4);
+		color: white;
+		text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+	}
+
+	.vinyl-overlay.pause-overlay {
+		opacity: 0;
+	}
+
+	.vinyl-container:hover .vinyl-overlay.pause-overlay.visible {
+		opacity: 0.6;
 	}
 
 	.vinyl-record {
@@ -123,7 +236,6 @@ Usage:
 		justify-content: center;
 		animation: rotate 10s linear infinite;
 		animation-play-state: paused;
-		filter: blur(5px);
 	}
 
 	.vinyl-container.playing .vinyl-record {
@@ -185,6 +297,33 @@ Usage:
 		font-size: var(--track-placeholder-size, 1.5rem);
 		color: var(--muted-foreground);
 		font-style: italic;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.tap-icon {
+		font-size: 2rem;
+		animation: bounce 1.5s ease-in-out infinite;
+	}
+
+	@keyframes bounce {
+		0%,
+		100% {
+			transform: translateY(0);
+		}
+		50% {
+			transform: translateY(-8px);
+		}
+	}
+
+	.stage-hint {
+		font-size: 0.875rem;
+		color: var(--muted-foreground);
+		text-align: center;
+		margin-top: 0.5rem;
+		opacity: 0.8;
 	}
 
 	.track-year {
@@ -205,6 +344,13 @@ Usage:
 		}
 		to {
 			transform: rotate(360deg);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.vinyl-record,
+		.tap-icon {
+			animation: none;
 		}
 	}
 </style>

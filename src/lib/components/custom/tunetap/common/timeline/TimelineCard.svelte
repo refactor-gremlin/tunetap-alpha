@@ -10,6 +10,7 @@ Usage:
     item={timelineItem}
     showSongName={showSongName}
     showArtistName={showArtistName}
+    showReleaseDates={showReleaseDates}
     fetchReleaseDate={fetchReleaseDate}
     onReleaseDateResolved={handleResolved}
   />
@@ -34,12 +35,14 @@ Usage:
 		item,
 		showSongName = false,
 		showArtistName = false,
+		showReleaseDates = false,
 		fetchReleaseDate = null,
 		onReleaseDateResolved
 	}: {
 		item: TimelineItem;
 		showSongName?: boolean;
 		showArtistName?: boolean;
+		showReleaseDates?: boolean;
 		fetchReleaseDate?: ((args: {
 			trackName: string;
 			artistName: string;
@@ -77,7 +80,7 @@ const needsReleaseDate = $derived(
 			{:else}
 				<div class="cover-placeholder">🎵</div>
 			{/if}
-			{#if releaseYear}
+			{#if releaseYear && showReleaseDates}
 				<div class="card-year">{releaseYear}</div>
 			{/if}
 			{#if hasSameYearOverlap}
@@ -109,12 +112,12 @@ const needsReleaseDate = $derived(
 				</Tooltip.Provider>
 			{/if}
 		</div>
-		{#if showSongName || showArtistName}
+		{#if showSongName || showArtistName || (showReleaseDates && releaseYear)}
 			<div class="card-info">
 				{#if showSongName}
 					<div class="card-name">{item.track.name}</div>
 				{/if}
-				{#if releaseYear}
+				{#if showReleaseDates && releaseYear}
 					<div class="card-year-text">{releaseYear}</div>
 				{/if}
 				{#if showArtistName}

@@ -17,6 +17,7 @@
 	import PlayerSetup from '$lib/components/custom/tunetap/common/controls/PlayerSetup.svelte';
 	import RoundResultModal from '$lib/components/custom/tunetap/common/dialogs/RoundResultModal.svelte';
 	import GameEndScreen from '$lib/components/custom/tunetap/common/dialogs/GameEndScreen.svelte';
+	import TurnHandoff from '$lib/components/custom/tunetap/common/dialogs/TurnHandoff.svelte';
 	import PlayableRefreshStatus from '$lib/components/custom/tunetap/common/status/PlayableRefreshStatus.svelte';
 	import QueueStatusWatcher from '$lib/components/custom/tunetap/common/status/QueueStatusWatcher.svelte';
 	import { buildTrackArtistKey } from '$lib/utils/release-key';
@@ -190,6 +191,8 @@
 	const currentPlayerIndex = $derived(pageState.gameEngine?.currentPlayerIndex ?? 0);
 	const turnNumber = $derived(pageState.gameEngine?.turnNumber ?? 1);
 	const playableTracksCount = $derived(pageState.playableTracks.length);
+	const showHandoff = $derived(pageState.showHandoff);
+	const nextPlayer = $derived(pageState.gameEngine?.currentPlayer);
 
 	const timelineItems = $derived(
 		pageState.gameEngine
@@ -226,21 +229,28 @@
 	</div>
 {:else if gameStatus === 'waiting'}
 	<div class="waiting-container">
-		<Card.Root class="waiting-card">
-			<Card.Header>
-				<Card.Title>Waiting for more tracks…</Card.Title>
-			</Card.Header>
-			<Card.Content>
-				<p>We're still fetching release dates to continue the game.</p>
-				<p>
-					Queue size: {pageState.queueSize} pending
-				</p>
-				<p class="waiting-hint">
-					Keep the tab open; new tracks will appear automatically once ready.
-				</p>
-				<Button variant="outline" onclick={() => goto('/playlist')}>Load different playlist</Button>
-			</Card.Content>
-		</Card.Root>
+		<div class="waiting-content">
+			<div class="loading-vinyl-animation">
+				<div class="vinyl-disc">
+					<div class="vinyl-grooves"></div>
+					<div class="vinyl-label">🎵</div>
+				</div>
+			</div>
+			<h2 class="waiting-title">Loading more tracks...</h2>
+			<p class="waiting-subtitle">
+				Fetching release dates from MusicBrainz
+			</p>
+			<div class="queue-progress">
+				<div class="queue-count">{pageState.queueSize}</div>
+				<div class="queue-label">tracks in queue</div>
+			</div>
+			<p class="waiting-hint">
+				Keep this tab open — new tracks will appear automatically!
+			</p>
+			<Button variant="outline" onclick={() => goto('/playlist')}>
+				Try a different playlist
+			</Button>
+		</div>
 	</div>
 {:else}
 	<div
@@ -286,6 +296,8 @@
 				showReleaseDates={pageState.showReleaseDates}
 				blurred={pageState.blurred}
 				onRevealClick={() => pageState.handleRevealClick()}
+				onPlayClick={() => pageState.playTrack()}
+				onStopClick={() => pageState.stopTrack()}
 			/>
 		</div>
 
@@ -309,7 +321,7 @@
 			<div
 				class="timeline-needle-overlay"
 				bind:this={pageState.needleOverlayEl}
-				style={`--needle-horizontal-offset: ${pageState.needleHorizontalOffset}px; ${needleStyles}`}
+				style={`--needle-horizontal-offset: ${pageState.needleSpring.current}px; ${needleStyles}`}
 			>
 				<Needle
 					showDropButton={pageState.showDropButton}
@@ -323,13 +335,21 @@
 		</div>
 	</div>
 
-	{#if gameStatus === 'roundEnd' && roundResult && currentPlayer}
+	{#if gameStatus === 'roundEnd' && roundResult && currentPlayer && !showHandoff}
 		<ActiveView.RoundResultModal
 			result={roundResult}
 			{currentPlayer}
 			{currentTrack}
 			exactYearBonusAwarded={pageState.exactYearBonusAwarded}
 			onNextTurn={() => pageState.nextTurn()}
+		/>
+	{/if}
+
+	{#if showHandoff && nextPlayer}
+		<TurnHandoff
+			{nextPlayer}
+			{turnNumber}
+			onReady={() => pageState.completeNextTurn()}
 		/>
 	{/if}
 {/if}
@@ -382,14 +402,105 @@
 		z-index: 1;
 	}
 
-	:global(.waiting-card) {
-		max-width: 520px;
+	.waiting-content {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
 		text-align: center;
+		gap: 1.5rem;
+		max-width: 400px;
+	}
+
+	.loading-vinyl-animation {
+		width: 120px;
+		height: 120px;
+	}
+
+	.vinyl-disc {
+		width: 100%;
+		height: 100%;
+		border-radius: 50%;
+		background: radial-gradient(circle, #1a1a1a 0%, #0a0a0a 100%);
+		border: 8px solid #2a2a2a;
+		position: relative;
+		animation: spin-vinyl 3s linear infinite;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.vinyl-grooves {
+		position: absolute;
+		inset: 10px;
+		border-radius: 50%;
+		background: repeating-radial-gradient(
+			circle at center,
+			transparent 0px,
+			transparent 2px,
+			rgba(255, 255, 255, 0.05) 2px,
+			rgba(255, 255, 255, 0.05) 4px
+		);
+	}
+
+	.vinyl-label {
+		width: 40px;
+		height: 40px;
+		border-radius: 50%;
+		background: var(--primary);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 1.25rem;
+		z-index: 1;
+	}
+
+	@keyframes spin-vinyl {
+		from {
+			transform: rotate(0deg);
+		}
+		to {
+			transform: rotate(360deg);
+		}
+	}
+
+	.waiting-title {
+		font-size: 1.5rem;
+		font-weight: 600;
+		color: var(--foreground);
+		margin: 0;
+	}
+
+	.waiting-subtitle {
+		font-size: 1rem;
+		color: var(--muted-foreground);
+		margin: 0;
+	}
+
+	.queue-progress {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		padding: 1rem 2rem;
+		background: var(--muted);
+		border-radius: var(--radius);
+	}
+
+	.queue-count {
+		font-size: 2.5rem;
+		font-weight: 700;
+		color: var(--primary);
+		line-height: 1;
+	}
+
+	.queue-label {
+		font-size: 0.875rem;
+		color: var(--muted-foreground);
 	}
 
 	.waiting-hint {
-		margin: 1rem 0;
+		font-size: 0.875rem;
 		color: var(--muted-foreground);
+		margin: 0;
 	}
 
 	.sr-only {

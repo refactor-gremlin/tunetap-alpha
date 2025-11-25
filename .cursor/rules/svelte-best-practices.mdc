@@ -266,6 +266,44 @@ Prefer `{@render children()}` using `$props()` to extract children over `<slot>`
 ```
 
 ### Focus Management
+### Non-interactive Containers & Keyboard Events
+- Never attach keyboard listeners to structural elements (e.g., timeline/scroll wrappers) unless you also supply `role`, `tabindex`, and full keyboard semantics—otherwise Svelte will emit `a11y_no_noninteractive_element_interactions`.
+- Prefer these patterns instead:
+  - Move the keyboard detection to `svelte:window` or another interactive control.
+  - Track scroll/touch/mouse activity via passive listeners set up inside a `$effect` so the container remains purely structural.
+```svelte
+<script lang="ts">
+  let timelineEl: HTMLElement | null = null;
+  let hasInteracted = $state(false);
+
+  function recordInteraction() {
+    hasInteracted = true;
+  }
+
+  function handleGlobalKeys(event: KeyboardEvent) {
+    const target = event.target as HTMLElement | null;
+    if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+    if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+      recordInteraction();
+    }
+  }
+
+  $effect(() => {
+    if (!timelineEl) return;
+    const onScroll = () => recordInteraction();
+    timelineEl.addEventListener('scroll', onScroll);
+    return () => timelineEl?.removeEventListener('scroll', onScroll);
+  });
+</script>
+
+<svelte:window onkeydown={handleGlobalKeys} onwheel={recordInteraction} />
+
+<div bind:this={timelineEl} class="timeline-reel">
+  <!-- structural scroll container with NO keyboard handlers -->
+</div>
+```
+This keeps the container accessible while still hiding hints or triggering logic after any interaction.
+
 ```svelte
 <!-- ✅ Proper focus management -->
 <script lang="ts">

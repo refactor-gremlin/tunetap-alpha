@@ -5,6 +5,8 @@ import devtoolsJson from 'vite-plugin-devtools-json';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 
+const isProd = process.env.NODE_ENV === 'production';
+
 export default defineConfig({
 	plugins: [
 		sentrySvelteKit({
@@ -42,8 +44,8 @@ export default defineConfig({
 				]
 			},
 			devOptions: {
-				enabled: true,
-				suppressWarnings: true
+				enabled: !isProd,
+				suppressWarnings: !isProd
 			}
 		}),
 		sveltekit(),

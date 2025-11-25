@@ -2,6 +2,7 @@ import type { Track } from '$lib/types';
 import type { PlacementType } from '$lib/types/tunetap.js';
 import { TuneTapGame } from '$lib/game/TuneTapGame.svelte.js';
 import { getContext, setContext, tick } from 'svelte';
+import { Spring, prefersReducedMotion } from 'svelte/motion';
 import { useEventListener } from 'runed';
 import { goto } from '$app/navigation';
 import type { Page } from '@sveltejs/kit';
@@ -45,6 +46,7 @@ export class GamePageState {
 	showArtistName = $state(false);
 	exactYearBonusAwarded = $state<number | null>(null);
 	blurred = $state(true);
+	showHandoff = $state(false);
 
 	// Audio
 	audioElement: HTMLAudioElement | null = $state(null);
@@ -54,7 +56,10 @@ export class GamePageState {
 	// Needle Drop Layout State
 	timelineReel: HTMLDivElement | null = $state(null);
 	needleOverlayEl: HTMLDivElement | null = $state(null);
-	needleHorizontalOffset = $state(0);
+	needleSpring = new Spring(0, {
+		stiffness: 0.15,
+		damping: 0.8
+	});
 	activeGapIndex = $state<number | null>(null);
 	activeCardIndex = $state<number | null>(null);
 	showDropButton = $state(false);
@@ -72,16 +77,53 @@ export class GamePageState {
 			() => window,
 			'keydown',
 			(event: KeyboardEvent) => {
-				if (!this.gameEngine || this.gameEngine.gameStatus !== 'playing') return;
+				// Don't handle shortcuts when typing in inputs
 				if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
 					return;
 				}
-				if (event.key === 'ArrowLeft' && this.canScrollLeft) {
+
+				// Global shortcuts (work in any game state)
+				if (event.key === ' ' || event.key === 'Spacebar') {
 					event.preventDefault();
-					this.scrollTimelineLeft();
-				} else if (event.key === 'ArrowRight' && this.canScrollRight) {
-					event.preventDefault();
-					this.scrollTimelineRight();
+					this.togglePlayPause();
+					return;
+				}
+
+				// Only handle these shortcuts when playing
+				if (!this.gameEngine || this.gameEngine.gameStatus !== 'playing') return;
+
+				switch (event.key) {
+					case 'ArrowLeft':
+						if (this.canScrollLeft) {
+							event.preventDefault();
+							this.scrollTimelineLeft();
+						}
+						break;
+					case 'ArrowRight':
+						if (this.canScrollRight) {
+							event.preventDefault();
+							this.scrollTimelineRight();
+						}
+						break;
+					case 'Enter':
+						// Confirm placement if button is visible
+						if (this.showDropButton) {
+							event.preventDefault();
+							if (this.activeCardIndex !== null) {
+								this.placeTrackSameYear(this.activeCardIndex);
+							} else if (this.activeGapIndex !== null) {
+								this.placeTrackFromGap(this.activeGapIndex);
+							}
+						}
+						break;
+					case 'r':
+					case 'R':
+						// Reveal track info
+						if (this.blurred) {
+							event.preventDefault();
+							this.handleRevealClick();
+						}
+						break;
 				}
 			}
 		);
@@ -107,8 +149,13 @@ export class GamePageState {
 				const reelRect = this.timelineReel?.getBoundingClientRect();
 				const overlayRect = this.needleOverlayEl?.getBoundingClientRect();
 				if (!reelRect || !overlayRect) return;
-				this.needleHorizontalOffset =
+				const offset =
 					reelRect.left + reelRect.width / 2 - (overlayRect.left + overlayRect.width / 2);
+				if (prefersReducedMotion.current) {
+					this.needleSpring.set(offset, { instant: true });
+				} else {
+					this.needleSpring.target = offset;
+				}
 			};
 
 			updateNeedleOffset();
@@ -298,6 +345,14 @@ export class GamePageState {
 			.catch((error) => console.error('[Game] Error playing audio:', error));
 	}
 
+	togglePlayPause() {
+		if (this.isPlaying) {
+			this.stopTrack();
+		} else {
+			this.playTrack();
+		}
+	}
+
 
 
 	private applyTrackReleaseDate(index: number, releaseDate: string | undefined) {
@@ -340,8 +395,21 @@ export class GamePageState {
 
 	nextTurn() {
 		if (!this.gameEngine) return;
+		// Show handoff screen if multiplayer
+		if (this.gameEngine.players.length > 1) {
+			this.showHandoff = true;
+		} else {
+			this.completeNextTurn();
+		}
+	}
+
+	completeNextTurn() {
+		if (!this.gameEngine) return;
 		this.gameEngine.nextTurn();
 		this.blurred = true;
+		this.showSongName = false;
+		this.showArtistName = false;
+		this.showHandoff = false;
 		this.stopTrack();
 	}
 
@@ -358,6 +426,8 @@ export class GamePageState {
 
 	handleRevealClick() {
 		this.blurred = false;
+		this.showSongName = true;
+		this.showArtistName = true;
 	}
 
 	handleScroll() {

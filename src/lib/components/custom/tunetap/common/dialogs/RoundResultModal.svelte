@@ -21,6 +21,9 @@ Usage:
 	import * as Dialog from '$lib/components/shadncn-ui/dialog/index.js';
 	import { Button } from '$lib/components/shadncn-ui/button/index.js';
 	import { getReleaseYear } from '$lib/utils/timeline.js';
+	import { fade, fly } from 'svelte/transition';
+	import { cubicOut } from 'svelte/easing';
+	import { prefersReducedMotion } from 'svelte/motion';
 
 	let {
 		result,
@@ -53,115 +56,119 @@ Usage:
 	const isCorrect = $derived(
 		exactYearBonusAwarded !== null ? exactYearBonusAwarded > 0 : (result?.correct ?? false)
 	);
+	const reducedMotion = $derived(prefersReducedMotion.current);
+	const modalTransitions = $derived({
+		fly: reducedMotion ? { duration: 0, y: 0 } : { y: 20, duration: 300, easing: cubicOut },
+		header: reducedMotion ? { duration: 0 } : { duration: 200 },
+		body: reducedMotion ? { duration: 0 } : { duration: 250, delay: 75 },
+		footer: reducedMotion ? { duration: 0 } : { duration: 250, delay: 150 }
+	});
+	const modalFadeOutDuration = $derived(reducedMotion ? 0 : 150);
 </script>
 
 {#if result}
 	<Dialog.Root bind:open={isModalOpen} onOpenChange={handleOpenChange}>
 		<Dialog.Content class="round-result-modal">
-			<Dialog.Header class="fade-in-title">
-				<Dialog.Title class="result-title {isCorrect ? 'correct' : 'incorrect'}">
-					{isCorrect ? '✅ Correct!' : '❌ Incorrect'}
-				</Dialog.Title>
-			</Dialog.Header>
-			<div class="round-result fade-in-content">
-				{#if currentTrack}
-					<!-- Track Info Card -->
-					<div class="track-info-card">
-						{#if currentTrack.coverImage}
-							<img
-								src={currentTrack.coverImage}
-								alt="{currentTrack.name} cover"
-								class="track-cover"
-							/>
-						{/if}
-						<div class="track-details">
-							<h3 class="track-name">{currentTrack.name}</h3>
-							<p class="track-artist">
-								{currentTrack.artists.join(', ')}
-							</p>
-							{#if trackYear}
-								<div class="track-year">
-									<span class="year-label">Released:</span>
-									<span class="year-value">{trackYear}</span>
-								</div>
-							{/if}
-						</div>
-					</div>
-				{/if}
-
-				<!-- Result Message -->
-				<div class="result-section">
-					{#if exactYearBonusAwarded !== null}
-						<!-- Exact year guess mode -->
-						{#if exactYearBonusAwarded > 0}
-							<p class="result-message">Perfect! Exact year guess correct!</p>
-							<p class="score-update">+{exactYearBonusAwarded} points</p>
-						{:else}
-							<p class="result-message">Wrong year guess.</p>
-							<p class="score-update">0 points</p>
-							{#if currentTrack?.firstReleaseDate}
-								<p class="correct-date">
-									Correct release date: {currentTrack.firstReleaseDate}
-								</p>
-							{/if}
-						{/if}
-					{:else}
-						<!-- Timeline placement mode -->
-						{#if result.correct}
-							<p class="result-message">Great job! The track was placed correctly.</p>
-							<p class="score-update">+1 point</p>
-						{:else}
-							<p class="result-message">The track was not placed in the correct position.</p>
-							<p class="score-update">0 points</p>
-							{#if currentTrack?.firstReleaseDate}
-								<p class="correct-date">
-									Correct release date: {currentTrack.firstReleaseDate}
-								</p>
-							{/if}
-						{/if}
-					{/if}
-
-					{#if currentPlayer}
-						<div class="score-display">
-							<p class="score-label">Current Score</p>
-							<p class="score-value">{currentPlayer.score}/10</p>
-						</div>
-					{/if}
+			<div class="round-result-panel" in:fly={modalTransitions.fly} out:fade={{ duration: modalFadeOutDuration }}>
+				<div class="round-result-header" in:fade={modalTransitions.header}>
+					<Dialog.Header>
+						<Dialog.Title class="result-title {isCorrect ? 'correct' : 'incorrect'}">
+							{isCorrect ? '✅ Correct!' : '❌ Incorrect'}
+						</Dialog.Title>
+					</Dialog.Header>
 				</div>
+				<div class="round-result" in:fade={modalTransitions.body}>
+					{#if currentTrack}
+						<!-- Track Info Card -->
+						<div class="track-info-card">
+							{#if currentTrack.coverImage}
+								<img
+									src={currentTrack.coverImage}
+									alt="{currentTrack.name} cover"
+									class="track-cover"
+								/>
+							{/if}
+							<div class="track-details">
+								<h3 class="track-name">{currentTrack.name}</h3>
+								<p class="track-artist">
+									{currentTrack.artists.join(', ')}
+								</p>
+								{#if trackYear}
+									<div class="track-year">
+										<span class="year-label">Released:</span>
+										<span class="year-value">{trackYear}</span>
+									</div>
+								{/if}
+							</div>
+						</div>
+					{/if}
+
+					<!-- Result Message -->
+					<div class="result-section">
+						{#if exactYearBonusAwarded !== null}
+							<!-- Exact year guess mode -->
+							{#if exactYearBonusAwarded > 0}
+								<p class="result-message">Perfect! Exact year guess correct!</p>
+								<p class="score-update">+{exactYearBonusAwarded} points</p>
+							{:else}
+								<p class="result-message">Wrong year guess.</p>
+								<p class="score-update">0 points</p>
+								{#if currentTrack?.firstReleaseDate}
+									<p class="correct-date">
+										Correct release date: {currentTrack.firstReleaseDate}
+									</p>
+								{/if}
+							{/if}
+						{:else}
+							<!-- Timeline placement mode -->
+							{#if result.correct}
+								<p class="result-message">Great job! The track was placed correctly.</p>
+								<p class="score-update">+1 point</p>
+							{:else}
+								<p class="result-message">The track was not placed in the correct position.</p>
+								<p class="score-update">0 points</p>
+								{#if currentTrack?.firstReleaseDate}
+									<p class="correct-date">
+										Correct release date: {currentTrack.firstReleaseDate}
+									</p>
+								{/if}
+							{/if}
+						{/if}
+
+						{#if currentPlayer}
+							<div class="score-display">
+								<p class="score-label">Current Score</p>
+								<p class="score-value">{currentPlayer.score}/10</p>
+							</div>
+						{/if}
+					</div>
+				</div>
+				<Dialog.Footer>
+					<div class="round-result-footer" in:fade={modalTransitions.footer}>
+						<Button onclick={onNextTurn} size="lg" class="next-button">Next Turn</Button>
+					</div>
+				</Dialog.Footer>
 			</div>
-			<Dialog.Footer class="fade-in-button">
-				<Button onclick={onNextTurn} size="lg" class="next-button">Next Turn</Button>
-			</Dialog.Footer>
 		</Dialog.Content>
 	</Dialog.Root>
 {/if}
 
 <style>
-	@keyframes fadeInUp {
-		from {
-			opacity: 0;
-			transform: translateY(10px);
-		}
-		to {
-			opacity: 1;
-			transform: translateY(0);
-		}
-	}
-
 	:global(.round-result-modal) {
 		max-width: 450px;
 	}
 
-	:global(.fade-in-title) {
-		animation: fadeInUp 0.4s ease-out;
+	.round-result-panel {
+		display: flex;
+		flex-direction: column;
 	}
 
-	.fade-in-content {
-		animation: fadeInUp 0.4s ease-out 0.15s both;
+	.round-result-header {
+		margin-bottom: 0.5rem;
 	}
 
-	:global(.fade-in-button) {
-		animation: fadeInUp 0.4s ease-out 0.3s both;
+	.round-result-footer {
+		width: 100%;
 	}
 
 	:global(.result-title) {

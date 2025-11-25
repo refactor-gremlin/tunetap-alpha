@@ -145,6 +145,13 @@ interface Props {
 
 ### Snippets vs Slots
 Prefer `{@render children()}` over `<slot>`:
+### Interaction on Structural Containers
+- Never attach keyboard listeners directly to non-interactive wrappers like timeline reels or scroll containers; Svelte enforces this via `a11y_no_noninteractive_element_interactions`.
+- If user interaction needs to be detected (e.g., to hide swipe hints), either:
+  - Move the keyboard detection to `svelte:window` and guard against inputs, or
+  - Convert the element into a true interactive control (add `role`, `tabindex`, and keyboard semantics).
+- Scroll/touch detection can remain on the container via passive listeners registered in a `$effect`, with cleanup when the element unmounts.
+
 ```svelte
 <script lang="ts">
   let { children } = $props();

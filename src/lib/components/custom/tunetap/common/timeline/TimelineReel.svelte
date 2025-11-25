@@ -22,6 +22,10 @@ Usage:
 -->
 <script lang="ts">
 	import type { Track } from '$lib/types.js';
+	import { flip } from 'svelte/animate';
+	import { fade, fly } from 'svelte/transition';
+	import { cubicOut } from 'svelte/easing';
+	import { prefersReducedMotion } from 'svelte/motion';
 	import { Button } from '$lib/components/shadncn-ui/button/index.js';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
@@ -67,7 +71,72 @@ Usage:
 			| null;
 		onReleaseDateResolved?: (payload: { trackId: string; date?: string; error?: unknown }) => void;
 	} = $props();
+
+	let hasInteracted = $state(false);
+	let showSwipeHint = $derived(!hasInteracted && timelineItems.length > 1);
+
+	function handleInteraction() {
+		hasInteracted = true;
+	}
+
+	function handleGlobalKeyInteraction(event: KeyboardEvent) {
+		const target = event.target as HTMLElement | null;
+		if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) {
+			return;
+		}
+		const keys = new Set([
+			'ArrowLeft',
+			'ArrowRight',
+			'Home',
+			'End',
+			'PageUp',
+			'PageDown',
+			'Space',
+			'Enter'
+		]);
+		if (keys.has(event.key)) {
+			handleInteraction();
+		}
+	}
+
+	const reducedMotion = $derived(prefersReducedMotion.current);
+
+	const timelineAnimation = $derived({
+		flip: reducedMotion ? { duration: 0 } : { duration: 320, easing: cubicOut },
+		enter: reducedMotion
+			? { duration: 0, y: 0 }
+			: { y: -30, duration: 220, easing: cubicOut },
+		exit: reducedMotion ? { duration: 0 } : { duration: 150 }
+	});
+
+	function getTimelineItemKey(item: TimelineItem, index: number) {
+		if (item.type === 'card' && item.track?.id) {
+			return `track-${item.track.id}`;
+		}
+
+		if (item.type === 'gap') {
+			return `gap-${item.gapIndex ?? index}`;
+		}
+
+		return `item-${index}`;
+	}
+
+	$effect(() => {
+		if (!timelineReel) return;
+		const onScroll = () => handleInteraction();
+		timelineReel.addEventListener('scroll', onScroll);
+		return () => {
+			timelineReel?.removeEventListener('scroll', onScroll);
+		};
+	});
 </script>
+
+<svelte:window
+	on:keydown={handleGlobalKeyInteraction}
+	on:touchstart={handleInteraction}
+	on:mousedown={handleInteraction}
+	on:wheel={handleInteraction}
+/>
 
 <!-- Zone C: The Timeline Reel (Bottom Flex) -->
 <div class="zone-c-timeline-wrapper">
@@ -83,28 +152,40 @@ Usage:
 		<ArrowLeftIcon class="size-4" />
 	</Button>
 
-	<div class="zone-c-timeline-reel" bind:this={timelineReel}>
+	<div
+		class="zone-c-timeline-reel"
+		bind:this={timelineReel}
+		role="group"
+	>
 		{#if timelineItems.length === 0}
 			<!-- Empty state - show at least one gap -->
 			<div class="timeline-gap" data-gap-index="0">
 				<div class="gap-marker"></div>
 			</div>
 		{:else}
-			{#each timelineItems as item, i}
-				{#if item.type === 'card' && item.track}
-					<TimelineCard
-						{item}
-						{showSongName}
-						{showArtistName}
-						{fetchReleaseDate}
-						{onReleaseDateResolved}
-					/>
-				{/if}
-				{#if item.type === 'gap'}
-					<div class="timeline-gap" data-gap-index={item.gapIndex ?? 0}>
-						<div class="gap-marker"></div>
-					</div>
-				{/if}
+			{#each timelineItems as item, i (getTimelineItemKey(item, i))}
+				<div
+					class={`timeline-item ${item.type === 'gap' ? 'timeline-item-gap' : 'timeline-item-card'}`}
+					animate:flip={timelineAnimation.flip}
+					in:fly={timelineAnimation.enter}
+					out:fade={timelineAnimation.exit}
+				>
+					{#if item.type === 'card' && item.track}
+						<TimelineCard
+							{item}
+							{showSongName}
+							{showArtistName}
+							{showReleaseDates}
+							{fetchReleaseDate}
+							{onReleaseDateResolved}
+						/>
+					{/if}
+					{#if item.type === 'gap'}
+						<div class="timeline-gap" data-gap-index={item.gapIndex ?? 0}>
+							<div class="gap-marker"></div>
+						</div>
+					{/if}
+				</div>
 			{/each}
 		{/if}
 	</div>
@@ -119,6 +200,14 @@ Usage:
 	>
 		<ArrowRightIcon class="size-4" />
 	</Button>
+
+	{#if showSwipeHint}
+		<div class="swipe-hint">
+			<span class="swipe-arrow">←</span>
+			<span>Swipe to browse</span>
+			<span class="swipe-arrow">→</span>
+		</div>
+	{/if}
 </div>
 
 <style>
@@ -168,6 +257,28 @@ Usage:
 		background: color-mix(in oklch, var(--muted) 20%, transparent);
 		z-index: -1;
 		pointer-events: none;
+	}
+
+	.timeline-item {
+		display: flex;
+		justify-content: center;
+		align-items: stretch;
+		flex: 0 0 auto;
+	}
+
+	.timeline-item-card {
+		width: var(--timeline-card-width, 180px);
+		flex-basis: var(--timeline-card-width, 180px);
+	}
+
+	.timeline-item-gap {
+		width: var(--timeline-gap-width, 120px);
+		min-width: var(--timeline-gap-width, 120px);
+		flex-basis: var(--timeline-gap-width, 120px);
+	}
+
+	.timeline-item-gap .timeline-gap {
+		width: 100%;
 	}
 
 	.timeline-gap {
@@ -247,5 +358,62 @@ Usage:
 
 	:global(.timeline-nav-right) {
 		right: 1rem;
+	}
+
+	.swipe-hint {
+		position: absolute;
+		bottom: 1rem;
+		left: 50%;
+		transform: translateX(-50%);
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		padding: 0.5rem 1rem;
+		background: var(--muted);
+		border-radius: 999px;
+		font-size: 0.875rem;
+		color: var(--muted-foreground);
+		animation: fadeInOut 3s ease-in-out forwards;
+		pointer-events: none;
+		z-index: 60;
+	}
+
+	.swipe-arrow {
+		animation: sway 1s ease-in-out infinite alternate;
+	}
+
+	.swipe-arrow:first-child {
+		animation-direction: alternate-reverse;
+	}
+
+	@keyframes sway {
+		from {
+			transform: translateX(-3px);
+		}
+		to {
+			transform: translateX(3px);
+		}
+	}
+
+	@keyframes fadeInOut {
+		0% {
+			opacity: 0;
+		}
+		15% {
+			opacity: 1;
+		}
+		85% {
+			opacity: 1;
+		}
+		100% {
+			opacity: 0;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.swipe-hint,
+		.swipe-arrow {
+			animation: none;
+		}
 	}
 </style>
