@@ -2,6 +2,23 @@ import type { Track } from '$lib/types';
 import type { Player, PlacementResult, GameStatus, PlacementType } from '$lib/types/tunetap.js';
 import { getReleaseYear } from '$lib/utils/timeline.js';
 import { isTrackPlayable } from '$lib/utils/track.js';
+import { getContext, setContext } from 'svelte';
+
+const TUNETAP_GAME_KEY = Symbol('TuneTapGame');
+
+export function createTuneTapGameContext() {
+	const ctx = new TuneTapGame();
+	setContext(TUNETAP_GAME_KEY, ctx);
+	return ctx;
+}
+
+export function useTuneTapGameContext() {
+	const ctx = getContext<TuneTapGame>(TUNETAP_GAME_KEY);
+	if (!ctx) {
+		throw new Error('TuneTapGame context not found. Ensure createTuneTapGameContext() is called in a parent component.');
+	}
+	return ctx;
+}
 
 export class TuneTapGame {
 	// State

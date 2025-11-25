@@ -9,7 +9,6 @@
 	import { Checkbox } from '$lib/components/shadncn-ui/checkbox/index.js';
 	import PageHeader from '$lib/components/custom/PageHeader.svelte';
 	import { RECOMMENDED_PLAYABLE_TRACKS, MIN_PARTIAL_START_TRACKS } from '$lib/constants/game';
-	import { onDestroy } from 'svelte';
 	import { createBoundaryErrorHandler } from '$lib/utils/error-boundary';
 	import ErrorState from '$lib/components/custom/common/ErrorState.svelte';
 	import { hasAudioSource } from '$lib/utils/track';
@@ -203,9 +202,11 @@
 		}
 	}
 
-	onDestroy(() => {
-		abortController?.abort();
-		clearProgressTimer();
+	$effect(() => {
+		return () => {
+			abortController?.abort();
+			clearProgressTimer();
+		};
 	});
 </script>
 

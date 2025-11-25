@@ -1,3 +1,20 @@
+<!--
+@component
+
+Modal dialog shown after each round to display the placement result (correct/incorrect).
+Shows feedback about the track placement and advances to the next turn.
+
+Usage:
+  ```html
+  <RoundResultModal
+    result={roundResult}
+    currentPlayer={currentPlayer}
+    currentTrack={currentTrack}
+    exactYearBonusAwarded={bonus}
+    onNextTurn={handleNextTurn}
+  />
+  ```
+-->
 <script lang="ts">
 	import type { PlacementResult, Player } from '$lib/types/tunetap.js';
 	import type { Track } from '$lib/types.js';

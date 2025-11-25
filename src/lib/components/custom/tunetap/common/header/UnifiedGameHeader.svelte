@@ -57,7 +57,7 @@ Usage:
 		isPlaying?: boolean;
 		onPlay?: () => void;
 		onStop?: () => void;
-		queueStatusFetcher?: (() => Promise<QueueStatus>) | null;
+		queueStatusFetcher?: ((args: Record<string, never>) => Promise<QueueStatus>) | null;
 		onQueueStatusUpdate?: (status: QueueStatus) => void;
 	} = $props();
 
@@ -74,7 +74,7 @@ Usage:
 		if (!queueStatusFetcher) return;
 		if (isFetchingQueueStatus) return;
 		isFetchingQueueStatus = true;
-		const fetchPromise = queueStatusFetcher().then((status) => {
+		const fetchPromise = queueStatusFetcher({}).then((status) => {
 			onQueueStatusUpdate?.(status);
 			return status;
 		});

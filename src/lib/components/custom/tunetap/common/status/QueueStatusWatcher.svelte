@@ -1,3 +1,18 @@
+<!--
+@component
+
+Watches the MusicBrainz queue status and reports updates via callback.
+Polls at regular intervals when active.
+
+Usage:
+  ```html
+  <QueueStatusWatcher
+    fetchQueueStatus={getQueueStatus}
+    onUpdate={handleQueueUpdate}
+    active={isWaiting}
+  />
+  ```
+-->
 <script lang="ts">
 	import { useInterval } from 'runed';
 	import { formatError, rethrow } from '$lib/utils/error-boundary';
@@ -13,7 +28,7 @@
 		onUpdate,
 		active = true
 	}: {
-		fetchQueueStatus?: (() => Promise<QueueStatus>) | null;
+		fetchQueueStatus?: ((args: Record<string, never>) => Promise<QueueStatus>) | null;
 		onUpdate?: (status: QueueStatus) => void;
 		active?: boolean;
 	} = $props();
@@ -28,7 +43,7 @@
 			return;
 		}
 		const currentRequestId = ++requestId;
-		const fetchPromise = fetchQueueStatus();
+		const fetchPromise = fetchQueueStatus({});
 		request = fetchPromise.then((status) => {
 			if (currentRequestId === requestId) {
 				latestStatus = status;

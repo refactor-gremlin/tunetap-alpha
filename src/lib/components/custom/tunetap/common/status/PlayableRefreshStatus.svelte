@@ -1,3 +1,19 @@
+<!--
+@component
+
+Background component that periodically refreshes the playable status of pending tracks.
+Fetches release dates and notifies when tracks become playable.
+
+Usage:
+  ```html
+  <PlayableRefreshStatus
+    pendingTracks={pendingTracks}
+    refreshPlayableTracks={refreshPlayableTracks}
+    ensureQueueBatch={ensureQueueBatch}
+    onReleaseBatch={handleReleaseBatch}
+  />
+  ```
+-->
 <script lang="ts">
 	import { useInterval } from 'runed';
 	import { formatError, rethrow } from '$lib/utils/error-boundary';

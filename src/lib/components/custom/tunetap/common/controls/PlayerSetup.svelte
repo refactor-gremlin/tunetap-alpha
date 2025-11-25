@@ -1,11 +1,27 @@
+<!--
+@component
+
+Player setup screen displayed before the game starts. Allows players to enter their names
+and shows the loading progress for playable tracks. Supports partial start with fewer tracks.
+
+Usage:
+  ```html
+  <PlayerSetup
+    playerNames={playerNames}
+    playableTracksCount={playableCount}
+    totalTracksCount={totalCount}
+    onStartGame={handleStartGame}
+    defaultAllowPartialStart={false}
+  />
+  ```
+-->
 <script lang="ts">
 	import { Button } from '$lib/components/shadncn-ui/button/index.js';
 	import { Input } from '$lib/components/shadncn-ui/input/index.js';
 	import * as Card from '$lib/components/shadncn-ui/card/index.js';
 	import { Progress } from '$lib/components/shadncn-ui/progress/index.js';
 	import { Checkbox } from '$lib/components/shadncn-ui/checkbox/index.js';
-	import { onMount } from 'svelte';
-	import { getQueueStatus } from '$lib/game/GamePage.state.svelte.js';
+	import { getQueueStatus } from '../../../../../../routes/game/musicbrainz.remote';
 	import { RECOMMENDED_PLAYABLE_TRACKS, MIN_PARTIAL_START_TRACKS } from '$lib/constants/game';
 
 	let {
@@ -51,10 +67,10 @@
 		}
 	});
 
-onMount(() => {
+$effect(() => {
 	const fetchStatus = async () => {
 		try {
-			const status = await getQueueStatus();
+			const status = await getQueueStatus({});
 			queueSize = status.pendingCount;
 			timeRemainingString = status.timeRemainingString;
 			if (!hasInitialQueueCheck) {
@@ -62,14 +78,12 @@ onMount(() => {
 			}
 		} catch (error) {
 			console.error('Error fetching queue status:', error);
-			// Still mark as checked even on error to avoid stuck state
 			if (!hasInitialQueueCheck) {
 				hasInitialQueueCheck = true;
 			}
 		}
 	};
 
-	// Fetch immediately on mount
 	fetchStatus();
 	const interval = setInterval(fetchStatus, 1000);
 	return () => clearInterval(interval);

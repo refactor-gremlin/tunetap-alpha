@@ -1,3 +1,20 @@
+<!--
+@component
+
+Individual track card displayed in the timeline. Shows track artwork, name, artist,
+and release year. Supports grouped same-year tracks with expand functionality.
+
+Usage:
+  ```html
+  <TimelineCard
+    item={timelineItem}
+    showSongName={showSongName}
+    showArtistName={showArtistName}
+    fetchReleaseDate={fetchReleaseDate}
+    onReleaseDateResolved={handleResolved}
+  />
+  ```
+-->
 <script lang="ts">
 	import type { Track } from '$lib/types.js';
 	import * as Dialog from '$lib/components/shadncn-ui/dialog/index.js';

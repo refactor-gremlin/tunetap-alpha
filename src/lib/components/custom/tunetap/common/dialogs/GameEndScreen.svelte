@@ -1,3 +1,18 @@
+<!--
+@component
+
+End game screen displayed when a player wins or all tracks are exhausted.
+Shows final scores and provides option to restart.
+
+Usage:
+  ```html
+  <GameEndScreen
+    players={players}
+    winner={winner}
+    onRestart={handleRestart}
+  />
+  ```
+-->
 <script lang="ts">
 	import type { Player } from '$lib/types/tunetap.js';
 	import { Button } from '$lib/components/shadncn-ui/button/index.js';

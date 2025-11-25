@@ -1,14 +1,27 @@
 import type { Track } from '$lib/types';
 import type { PlacementType } from '$lib/types/tunetap.js';
 import { TuneTapGame } from '$lib/game/TuneTapGame.svelte.js';
-import { tick } from 'svelte';
+import { getContext, setContext, tick } from 'svelte';
 import { useEventListener } from 'runed';
 import { goto } from '$app/navigation';
 import type { Page } from '@sveltejs/kit';
 import { isTrackPlayable, needsReleaseDate } from '$lib/utils/track';
 
-import { getQueueStatus as getQueueStatusRemote } from '../../routes/game/musicbrainz.remote';
-export const getQueueStatus = getQueueStatusRemote;
+const GAME_PAGE_KEY = Symbol('GamePageState');
+
+export function createGamePageContext() {
+	const ctx = new GamePageState();
+	setContext(GAME_PAGE_KEY, ctx);
+	return ctx;
+}
+
+export function useGamePageContext() {
+	const ctx = getContext<GamePageState>(GAME_PAGE_KEY);
+	if (!ctx) {
+		throw new Error('GamePageState context not found. Ensure createGamePageContext() is called in a parent component.');
+	}
+	return ctx;
+}
 
 export class GamePageState {
 	// Tracks and Players
@@ -112,12 +125,50 @@ export class GamePageState {
 
 	}
 
+	/**
+	 * Hydrate the state with game data. This is the preferred method per AGENTS.md -
+	 * data loading should happen in the component, then passed to the state class.
+	 */
+	hydrateData(data: {
+		tracks: Track[];
+		playerCount: number;
+		showSongName?: boolean;
+		showArtistName?: boolean;
+		allowPartialStart?: boolean;
+	}) {
+		if (this.hasInitialized) return;
+
+		const playerCount = Math.min(6, Math.max(2, data.playerCount));
+
+		if (data.tracks.length > 0) {
+			this.hasInitialized = true;
+			this.tracks = data.tracks;
+			this.playerCount = playerCount;
+			this.playerNames = Array(playerCount)
+				.fill('')
+				.map((_, i) => `Player ${i + 1}`);
+			this.showSongName = data.showSongName ?? false;
+			this.showArtistName = data.showArtistName ?? false;
+			this.allowPartialStartPreference = data.allowPartialStart ?? false;
+			this.initializeReleaseMap(data.tracks);
+		}
+
+		this.updateScrollState();
+	}
+
+	/**
+	 * Convenience method that loads data from sessionStorage/page state.
+	 * Prefer using hydrateData() with data loaded in the component.
+	 */
 	init(page: Page) {
 		if (this.hasInitialized) return;
 
 		let loadedTracks: Track[] | null = null;
 		let loadedPlayerCount = 2;
 		let loadedFromSessionStorage = false;
+		let showSongName = false;
+		let showArtistName = false;
+		let allowPartialStart = false;
 
 		try {
 			const tracksData = sessionStorage.getItem('tunetap_tracks');
@@ -131,11 +182,9 @@ export class GamePageState {
 				loadedFromSessionStorage = true;
 			}
 			if (playerCountData) loadedPlayerCount = parseInt(playerCountData, 10);
-			if (showSongNameData) this.showSongName = showSongNameData === 'true';
-			if (showArtistNameData) this.showArtistName = showArtistNameData === 'true';
-			if (allowPartialStartData) this.allowPartialStartPreference = allowPartialStartData === 'true';
-
-			// Don't clear sessionStorage here - wait until game successfully initializes
+			if (showSongNameData) showSongName = showSongNameData === 'true';
+			if (showArtistNameData) showArtistName = showArtistNameData === 'true';
+			if (allowPartialStartData) allowPartialStart = allowPartialStartData === 'true';
 		} catch (error) {
 			console.error('[Game] Error loading from sessionStorage:', error);
 		}
@@ -151,28 +200,25 @@ export class GamePageState {
 				}
 			}
 			if (pageState?.playerCount) loadedPlayerCount = pageState.playerCount;
-			if (pageState?.showSongName !== undefined) this.showSongName = pageState.showSongName;
-			if (pageState?.showArtistName !== undefined) this.showArtistName = pageState.showArtistName;
-			if (pageState?.allowPartialStart !== undefined) {
-				this.allowPartialStartPreference = pageState.allowPartialStart;
-			}
+			if (pageState?.showSongName !== undefined) showSongName = pageState.showSongName;
+			if (pageState?.showArtistName !== undefined) showArtistName = pageState.showArtistName;
+			if (pageState?.allowPartialStart !== undefined) allowPartialStart = pageState.allowPartialStart;
 		}
 
-		loadedPlayerCount = Math.min(6, Math.max(2, loadedPlayerCount));
-
 		if (loadedTracks && loadedTracks.length > 0) {
-			this.hasInitialized = true;
-			this.tracks = loadedTracks;
-			this.playerCount = loadedPlayerCount;
-			this.playerNames = Array(this.playerCount).fill('').map((_, i) => `Player ${i + 1}`);
-			this.initializeReleaseMap(loadedTracks);
+			this.hydrateData({
+				tracks: loadedTracks,
+				playerCount: loadedPlayerCount,
+				showSongName,
+				showArtistName,
+				allowPartialStart
+			});
 
-			// Clear sessionStorage only after successful initialization
 			if (loadedFromSessionStorage) {
 				this.clearSessionStorage();
 			}
 		}
-		
+
 		this.updateScrollState();
 	}
 

@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { onMount } from 'svelte';
 	import type { Track } from '$lib/types';
 
 	import { ViewportSizeDetector } from '$lib/hooks/viewport-size.svelte.js';
@@ -173,8 +172,9 @@
 		}
 	});
 
-	onMount(() => {
-		pageState.init($page);
+	$effect(() => {
+		if (pageState.hasInitialized) return;
+		pageState.init(page);
 	});
 
 	// Derived values from game engine

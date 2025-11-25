@@ -43,21 +43,20 @@ export const ensureQueueBatch = query(
 	}
 );
 
-export const getQueueSize = query(async () => {
+export const getQueueSize = query(z.object({}), async () => {
 	return musicBrainzQueue.getPendingCount();
 });
 
-export const getQueueStatus = query(async () => {
+export const getQueueStatus = query(z.object({}), async () => {
 	const pendingCount = musicBrainzQueue.getPendingCount();
-	// Estimate time remaining (1 second per track)
 	const estimatedSeconds = pendingCount;
 	return {
 		pendingCount,
 		estimatedTimeRemaining: estimatedSeconds,
-		// Format time as readable string
-		timeRemainingString: estimatedSeconds > 60 
-			? `${Math.floor(estimatedSeconds / 60)}m ${estimatedSeconds % 60}s`
-			: `${estimatedSeconds}s`
+		timeRemainingString:
+			estimatedSeconds > 60
+				? `${Math.floor(estimatedSeconds / 60)}m ${estimatedSeconds % 60}s`
+				: `${estimatedSeconds}s`
 	};
 });
 
