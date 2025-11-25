@@ -28,15 +28,7 @@
 	let progressPercentage = $state(0);
 	let allowPartialStart = $state(defaultAllowPartialStart);
 	let timeRemainingString = $state('');
-	let hasHydratedPartialPref = $state(false);
 	let hasInitialQueueCheck = $state(false);
-
-	$effect(() => {
-		if (!hasHydratedPartialPref) {
-			allowPartialStart = defaultAllowPartialStart;
-			hasHydratedPartialPref = true;
-		}
-	});
 
 	const hasRecommendedTracks = $derived(playableTracksCount >= RECOMMENDED_PLAYABLE_TRACKS);
 	const canOfferPartialStart = $derived(

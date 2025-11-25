@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Track } from '$lib/types';
+	import { formatError, rethrow } from '$lib/utils/error-boundary';
 
 	type FetchReleaseDateFn = ((args: {
 		trackName: string;
@@ -15,8 +16,8 @@
 		onResolved
 	}: {
 		track: Track;
-	fetchReleaseDate?: FetchReleaseDateFn;
-	onResolved?: (payload: ReleaseResolutionPayload) => void;
+		fetchReleaseDate?: FetchReleaseDateFn;
+		onResolved?: (payload: ReleaseResolutionPayload) => void;
 	} = $props();
 
 	let request = $state<Promise<string | undefined> | null>(null);
@@ -24,17 +25,6 @@
 	let lastTrackId = $state<string | null>(null);
 	let resolvedPayload = $state<ReleaseResolutionPayload | null>(null);
 	let lastNotifiedTrackId = $state<string | null>(null);
-
-	const formatError = (error: unknown) => {
-		if (error && typeof error === 'object' && 'message' in error) {
-			const message = (error as { message?: unknown }).message;
-			if (typeof message === 'string') return message;
-			if (message != null) return String(message);
-		}
-		if (typeof error === 'string') return error;
-		if (error == null) return 'Unknown error';
-		return String(error);
-	};
 
 	$effect(() => {
 		const currentTrackId = track?.id ?? null;
@@ -94,18 +84,21 @@
 
 {#if request}
 	<svelte:boundary>
+		{#snippet failed(error, reset)}
+			<span class="sr-only">Release lookup failed: {formatError(error)}</span>
+		{/snippet}
 		{#await request}
 			<span class="sr-only">Looking up release date…</span>
 		{:then date}
-		<span class="sr-only">
-			{#if date}
-				Release date found.
-			{:else}
-				Release date lookup completed with no date found.
-			{/if}
-		</span>
+			<span class="sr-only">
+				{#if date}
+					Release date found.
+				{:else}
+					Release date lookup completed with no date found.
+				{/if}
+			</span>
 		{:catch error}
-			<span class="sr-only">Release lookup failed: {formatError(error)}</span>
+			{rethrow(error)}
 		{/await}
 	</svelte:boundary>
 {/if}

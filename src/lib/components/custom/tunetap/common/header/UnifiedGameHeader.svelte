@@ -27,6 +27,7 @@ Usage:
 	import { Badge } from '$lib/components/shadncn-ui/badge/index.js';
 	import { Button } from '$lib/components/shadncn-ui/button/index.js';
 	import { useInterval } from 'runed';
+	import { rethrow } from '$lib/utils/error-boundary';
 
 	type QueueStatus = {
 		pendingCount: number;
@@ -129,6 +130,11 @@ Usage:
 			{#if queueStatusPromise}
 				<div class="queue-status">
 					<svelte:boundary>
+						{#snippet failed(error, reset)}
+							<div class="queue-badge">
+								<Badge variant="destructive">Queue error</Badge>
+							</div>
+						{/snippet}
 						{#await queueStatusPromise}
 							<div class="queue-badge">
 								<Badge variant="outline">Queue updating…</Badge>
@@ -138,9 +144,7 @@ Usage:
 								<Badge variant="secondary">Queue: {status.pendingCount}</Badge>
 							</div>
 						{:catch error}
-							<div class="queue-badge">
-								<Badge variant="destructive">Queue error</Badge>
-							</div>
+							{rethrow(error)}
 						{/await}
 					</svelte:boundary>
 				</div>

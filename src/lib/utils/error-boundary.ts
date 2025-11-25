@@ -2,6 +2,33 @@ import * as Sentry from '@sentry/sveltekit';
 import { logger } from '$lib/utils/logger';
 
 /**
+ * Formats an unknown error into a string message.
+ * Use this in `failed` snippets where error is of type `unknown`.
+ */
+export function formatError(error: unknown): string {
+	if (error && typeof error === 'object' && 'message' in error) {
+		const message = (error as { message?: unknown }).message;
+		return typeof message === 'string' ? message : 'Unknown error';
+	}
+	return 'Unknown error';
+}
+
+/**
+ * Rethrows an error to delegate handling to svelte:boundary's `failed` snippet.
+ * Use this in `{:catch}` blocks to unify error handling.
+ *
+ * @example
+ * ```svelte
+ * {:catch error}
+ *   {rethrow(error)}
+ * {/await}
+ * ```
+ */
+export function rethrow(error: unknown): never {
+	throw error;
+}
+
+/**
  * Creates a standardized error handler for svelte:boundary components.
  *
  * This handler:

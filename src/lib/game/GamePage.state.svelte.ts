@@ -205,10 +205,20 @@ export class GamePageState {
 	}
 
 	applyReleaseDateById(trackId: string, releaseDate: string | undefined) {
-		if (!releaseDate) return false;
+		if (!releaseDate) {
+			console.log(`[GamePageState] applyReleaseDateById: No date for ${trackId}`);
+			return false;
+		}
 		const index = this.tracks.findIndex((track) => track.id === trackId);
-		if (index === -1) return false;
-		return this.applyTrackReleaseDate(index, releaseDate);
+		if (index === -1) {
+			console.log(`[GamePageState] applyReleaseDateById: Track not found ${trackId}`);
+			return false;
+		}
+		const result = this.applyTrackReleaseDate(index, releaseDate);
+		if (result) {
+			console.log(`[GamePageState] Applied release date ${releaseDate} to track ${trackId} (index ${index})`);
+		}
+		return result;
 	}
 
 	getTrackById(trackId: string) {

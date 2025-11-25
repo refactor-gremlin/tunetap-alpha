@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { useInterval } from 'runed';
+	import { formatError, rethrow } from '$lib/utils/error-boundary';
 
 	type QueueStatus = {
 		pendingCount: number;
@@ -20,17 +21,6 @@
 	let request = $state<Promise<QueueStatus> | null>(null);
 	let latestStatus = $state<QueueStatus | null>(null);
 	let requestId = 0;
-
-	const formatError = (error: unknown) => {
-		if (error && typeof error === 'object' && 'message' in error) {
-			const message = (error as { message?: unknown }).message;
-			if (typeof message === 'string') return message;
-			if (message != null) return String(message);
-		}
-		if (typeof error === 'string') return error;
-		if (error == null) return 'Unknown error';
-		return String(error);
-	};
 
 	const triggerFetch = () => {
 		if (!fetchQueueStatus || !active) {
@@ -70,12 +60,15 @@
 
 {#if request}
 	<svelte:boundary>
+		{#snippet failed(error, reset)}
+			<span class="sr-only">Queue status error: {formatError(error)}</span>
+		{/snippet}
 		{#await request}
 			<span class="sr-only">Checking queue status…</span>
 		{:then status}
 			<span class="sr-only">Queue pending {status.pendingCount}</span>
 		{:catch error}
-			<span class="sr-only">Queue status error: {formatError(error)}</span>
+			{rethrow(error)}
 		{/await}
 	</svelte:boundary>
 {/if}

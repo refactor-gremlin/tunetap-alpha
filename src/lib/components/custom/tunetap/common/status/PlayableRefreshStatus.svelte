@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { useInterval } from 'runed';
+	import { formatError, rethrow } from '$lib/utils/error-boundary';
 
 	type PendingTrackPayload = {
 		id: string;
@@ -30,29 +31,36 @@
 	let refreshPromise = $state<Promise<RefreshResult> | null>(null);
 	let ensurePromise = $state<Promise<{ success: boolean }> | null>(null);
 	let ensuredTrackIds = $state<Set<string>>(new Set());
-	let refreshInFlight = $state(false);
+	let lastRefreshResult = $state<RefreshResult | null>(null);
 
 	const refreshInterval = useInterval(4000, {
-		immediate: false,
-		callback: () => runRefresh()
+		immediate: true,
+		callback: () => {
+			if (refreshPlayableTracks && pendingTracks.length > 0) {
+				const promise = refreshPlayableTracks({ tracks: pendingTracks });
+				refreshPromise = promise;
+				promise
+					.then((result) => {
+						lastRefreshResult = result;
+					})
+					.catch(() => {
+						// Error handled by template
+					});
+			}
+		}
 	});
 
-	function runRefresh() {
-		if (!refreshPlayableTracks || pendingTracks.length === 0) {
-			refreshPromise = null;
-			refreshInFlight = false;
-			return;
+	// Handle refresh result via $effect (proper side effect handling)
+	$effect(() => {
+		if (lastRefreshResult && onReleaseBatch) {
+			const count = Object.keys(lastRefreshResult.releaseDates).length;
+			if (count > 0) {
+				console.log(`[PlayableRefreshStatus] Applying ${count} release dates`);
+				onReleaseBatch(lastRefreshResult.releaseDates);
+			}
+			lastRefreshResult = null;
 		}
-		if (refreshInFlight) {
-			return;
-		}
-		refreshInFlight = true;
-		const pendingRefresh = refreshPlayableTracks({ tracks: pendingTracks });
-		refreshPromise = pendingRefresh;
-		pendingRefresh.finally(() => {
-			refreshInFlight = false;
-		});
-	}
+	});
 
 	function ensureBackgroundTracks() {
 		if (!ensureQueueBatch || pendingTracks.length <= 20 || ensurePromise) {
@@ -82,16 +90,16 @@
 		ensurePromise = ensureChain;
 	}
 
+	// Pause/resume interval based on pending tracks
 	$effect(() => {
-		if (!refreshPlayableTracks || pendingTracks.length === 0) {
+		if (pendingTracks.length === 0 || !refreshPlayableTracks) {
 			refreshInterval.pause();
-			refreshPromise = null;
-			return;
+		} else {
+			refreshInterval.resume();
 		}
-		runRefresh();
-		refreshInterval.resume();
 	});
 
+	// Clean up ensuredTrackIds when pendingTracks changes
 	$effect(() => {
 		const pendingIds = new Set(pendingTracks.map((track) => track.id));
 		const filtered = new Set(
@@ -107,26 +115,28 @@
 	});
 </script>
 
-{#if ensurePromise}
+{#if refreshPromise}
 	<svelte:boundary>
-		{#await ensurePromise}
-			<span class="sr-only">Queueing additional tracks…</span>
-		{:then}
-			<span class="sr-only">Background queue updated.</span>
+		{#snippet failed(error, reset)}
+			<span class="sr-only">Refresh error: {formatError(error)}</span>
+		{/snippet}
+		{#await refreshPromise then}
+			<span class="sr-only">Refresh complete.</span>
 		{:catch error}
-			<span class="sr-only">Queue ensure error: {error.message}</span>
+			{rethrow(error)}
 		{/await}
 	</svelte:boundary>
 {/if}
 
-{#if refreshPromise}
+{#if ensurePromise}
 	<svelte:boundary>
-		{#await refreshPromise}
-			<span class="sr-only">Refreshing playable tracks…</span>
-		{:then result}
-			{@const _apply = (onReleaseBatch?.(result.releaseDates), null)}
+		{#snippet failed(error, reset)}
+			<span class="sr-only">Queue ensure error: {formatError(error)}</span>
+		{/snippet}
+		{#await ensurePromise then}
+			<span class="sr-only">Background queue updated.</span>
 		{:catch error}
-			<span class="sr-only">Refresh failed: {error.message}</span>
+			{rethrow(error)}
 		{/await}
 	</svelte:boundary>
 {/if}

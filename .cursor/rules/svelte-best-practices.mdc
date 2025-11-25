@@ -44,7 +44,7 @@ globs: *.svelte, *.svelte.ts
 When data changes frequently and you want to avoid content jumping, omit the pending state using shorthand syntax:
 
 ```svelte
-{svelte:boundary}
+<svelte:boundary>
   {#await getData() then data}
     <Content {data} />
   {:catch error}
@@ -60,6 +60,53 @@ When data changes frequently and you want to avoid content jumping, omit the pen
 - Loading indicators cause visual displacement
 
 **Important:** Always include `{:catch}` blocks and wrap in `<svelte:boundary>` for proper error handling, even when omitting the pending state.
+
+### Using `failed` Snippet with Boundaries
+The `<svelte:boundary>` element supports a `failed` snippet for handling errors with a recovery option. For unified error handling, rethrow async errors so the `failed` snippet catches everything.
+
+**Import the helpers from `$lib/utils/error-boundary`:**
+```typescript
+import { createBoundaryErrorHandler, formatError, rethrow } from '$lib/utils/error-boundary';
+```
+
+**Usage:**
+```svelte
+<svelte:boundary onerror={createBoundaryErrorHandler('MyComponent')}>
+  {#snippet failed(error, reset)}
+    <div class="error-recovery">
+      <p>Something went wrong: {formatError(error)}</p>
+      <button onclick={reset}>Try again</button>
+    </div>
+  {/snippet}
+  {#await getData()}
+    <Skeleton />
+  {:then data}
+    <Content {data} />
+  {:catch error}
+    {rethrow(error)}
+  {/await}
+</svelte:boundary>
+```
+
+**Available Helpers:**
+- `createBoundaryErrorHandler(context)` - Creates an `onerror` handler that reports to Sentry with context tags
+- `formatError(error)` - Safely formats unknown errors to string (handles `error.message` extraction)
+- `rethrow(error)` - Cleanly rethrows errors to delegate to the `failed` snippet
+
+**Key Points:**
+- Use `rethrow(error)` in `{:catch}` to delegate async errors to the `failed` snippet
+- Use `formatError(error)` since `error` is `unknown` type in the `failed` snippet
+- `failed` snippet becomes the single source of truth for all error UI
+- The `reset` function recreates the boundary contents, enabling retry for both async and rendering errors
+- `createBoundaryErrorHandler` automatically reports errors to Sentry with context
+
+**When to Use `failed` Snippet:**
+- Components that may throw during rendering
+- Recovery UI with retry functionality is needed
+- Unified error handling for both async and rendering errors
+- Isolating flaky components from crashing the whole app
+
+> Note: Errors in event handlers or after `setTimeout`/async work are NOT caught by boundaries.
 
 ## Decision Rules: `$derived` vs `$derived.by`
 

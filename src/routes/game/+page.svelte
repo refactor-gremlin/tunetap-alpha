@@ -28,7 +28,7 @@
 		ensureQueueBatch,
 		refreshPlayableTracks
 	} from './musicbrainz.remote';
-	import { createBoundaryErrorHandler } from '$lib/utils/error-boundary';
+	import { createBoundaryErrorHandler, formatError, rethrow } from '$lib/utils/error-boundary';
 
 	// Component view maps
 	const MobileView = {
@@ -118,7 +118,9 @@
 	}
 
 	function handleReleaseDateBatch(releaseDates: Record<string, string>) {
-		for (const [trackId, date] of Object.entries(releaseDates)) {
+		const entries = Object.entries(releaseDates);
+		console.log(`[Game] handleReleaseDateBatch called with ${entries.length} dates`);
+		for (const [trackId, date] of entries) {
 			applyReleaseDateAndNotify(trackId, date);
 		}
 	}
@@ -334,10 +336,15 @@
 
 {#if cacheHydrationPromise}
 	<svelte:boundary onerror={createBoundaryErrorHandler('GameCacheHydration')}>
+		{#snippet failed(error, reset)}
+			<span class="sr-only">Cache error: {formatError(error)}</span>
+		{/snippet}
 		{#await cacheHydrationPromise}
 			<span class="sr-only">Hydrating release cache…</span>
 		{:then}
 			<span class="sr-only">Release cache hydrated.</span>
+		{:catch error}
+			{rethrow(error)}
 		{/await}
 	</svelte:boundary>
 {/if}
