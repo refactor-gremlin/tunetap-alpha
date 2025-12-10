@@ -136,13 +136,20 @@ export class GamePageState {
 		
 		useEventListener(() => this.timelineReel, 'scroll', this.handleScroll.bind(this));
 		
+		// Track when timelineReel changes (e.g., player switches, timeline content updates)
+		let reelEffectCount = 0;
 		$effect(() => {
 			// Only track timelineReel - don't modify state synchronously to avoid loops
 			const reel = this.timelineReel;
 			if (!reel) return;
 			
+			reelEffectCount++;
+			const currentCount = reelEffectCount;
+			console.log(`[GamePageState] timelineReel effect triggered #${currentCount}`);
+			
 			// Defer all state modifications to after the effect tracking phase
 			tick().then(() => {
+				console.log(`[GamePageState] timelineReel tick.then #${currentCount}`);
 				this.updateScrollState();
 				if (this.gameEngine?.gameStatus === 'playing') {
 					this.detectNeedleCollision();
@@ -150,9 +157,14 @@ export class GamePageState {
 			});
 		});
 
+		// Track needle overlay setup - this effect should only run when elements change
+		let needleEffectCount = 0;
 		$effect(() => {
 			if (typeof window === 'undefined' || typeof ResizeObserver === 'undefined') return;
 			if (!this.timelineReel || !this.needleOverlayEl) return;
+
+			needleEffectCount++;
+			console.log(`[GamePageState] needleOverlay effect triggered #${needleEffectCount}`);
 
 			const updateNeedleOffset = () => {
 				const reelRect = this.timelineReel?.getBoundingClientRect();
@@ -707,6 +719,7 @@ export class GamePageState {
 	 * Call this once after context is created to enable auto-save on state changes.
 	 */
 	enableSessionPersistence(): void {
+		let persistEffectCount = 0;
 		$effect(() => {
 			// Track all serializable state changes
 			// eslint-disable-next-line @typescript-eslint/no-unused-expressions
@@ -723,6 +736,12 @@ export class GamePageState {
 			this.showHandoff;
 			// eslint-disable-next-line @typescript-eslint/no-unused-expressions
 			this.blurred;
+
+			persistEffectCount++;
+			if (persistEffectCount > 50) {
+				console.error(`[GamePageState] POSSIBLE LOOP: sessionPersistence effect triggered ${persistEffectCount} times!`);
+				return; // Stop to prevent freeze
+			}
 
 			if (this.hasInitialized) {
 				this.saveToSession();
