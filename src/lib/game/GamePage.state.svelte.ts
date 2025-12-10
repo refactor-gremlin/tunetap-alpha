@@ -137,8 +137,11 @@ export class GamePageState {
 		useEventListener(() => this.timelineReel, 'scroll', this.handleScroll.bind(this));
 		
 		$effect(() => {
-			if (!this.timelineReel) return;
-			this.updateScrollState();
+			// Only track timelineReel - don't modify state synchronously to avoid loops
+			const reel = this.timelineReel;
+			if (!reel) return;
+			
+			// Defer all state modifications to after the effect tracking phase
 			tick().then(() => {
 				this.updateScrollState();
 				if (this.gameEngine?.gameStatus === 'playing') {
