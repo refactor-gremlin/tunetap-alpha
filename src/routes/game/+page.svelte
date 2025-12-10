@@ -192,7 +192,14 @@
 	const turnNumber = $derived(pageState.gameEngine?.turnNumber ?? 1);
 	const playableTracksCount = $derived(pageState.playableTracks.length);
 	const showHandoff = $derived(pageState.showHandoff);
-	const nextPlayer = $derived(pageState.gameEngine?.currentPlayer);
+	
+	// Calculate the NEXT player for handoff (not current player)
+	const nextPlayerIndex = $derived(
+		pageState.gameEngine
+			? (pageState.gameEngine.currentPlayerIndex + 1) % pageState.gameEngine.players.length
+			: 0
+	);
+	const nextPlayer = $derived(pageState.gameEngine?.players[nextPlayerIndex]);
 
 	const timelineItems = $derived(
 		pageState.gameEngine
@@ -335,7 +342,7 @@
 		</div>
 	</div>
 
-	{#if gameStatus === 'roundEnd' && roundResult && currentPlayer}
+	{#if gameStatus === 'roundEnd' && roundResult && currentPlayer && !showHandoff}
 		<ActiveView.RoundResultModal
 			result={roundResult}
 			{currentPlayer}
@@ -348,7 +355,7 @@
 	{#if showHandoff && nextPlayer}
 		<TurnHandoff
 			{nextPlayer}
-			{turnNumber}
+			turnNumber={turnNumber + 1}
 			onReady={() => pageState.completeNextTurn()}
 		/>
 	{/if}
