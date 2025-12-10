@@ -41,19 +41,31 @@ Usage:
 
 	let isModalOpen = $state(true);
 	let hasUserDismissed = $state(false);
-	let previousResultRef: PlacementResult | null = null;
+	
+	// Track the result by its content, not reference, to avoid issues with object recreation
+	let lastResultCorrect: boolean | null = null;
+	let lastResultPosition: number | null = null;
 
-	// Reset dismissed state and open modal when result changes to a NEW non-null value
-	// This ensures we don't reset when result becomes null during state transitions
+	// Reset dismissed state and open modal when result changes to a NEW value
 	$effect(() => {
-		if (result && result !== previousResultRef) {
-			// New non-null result - this is a new round
-			previousResultRef = result;
-			hasUserDismissed = false;
-			isModalOpen = true;
-		} else if (!result) {
-			// Result cleared - just update the ref, don't change modal state
-			previousResultRef = null;
+		if (result) {
+			// Check if this is actually a different result (by content, not reference)
+			const isNewResult = 
+				lastResultCorrect !== result.correct || 
+				lastResultPosition !== result.correctPosition;
+			
+			if (isNewResult) {
+				console.log(`[RoundResultModal] New result detected: correct=${result.correct}, pos=${result.correctPosition}`);
+				lastResultCorrect = result.correct;
+				lastResultPosition = result.correctPosition;
+				hasUserDismissed = false;
+				isModalOpen = true;
+			}
+		} else if (lastResultCorrect !== null) {
+			// Result cleared - only log if we had a result before
+			console.log('[RoundResultModal] Result cleared');
+			lastResultCorrect = null;
+			lastResultPosition = null;
 		}
 	});
 
