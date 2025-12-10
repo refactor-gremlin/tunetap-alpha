@@ -450,4 +450,90 @@ export class TuneTapGame {
 		this.currentTrack = null;
 		this.roundResult = null;
 	}
+
+	/**
+	 * Serialize game engine state for sessionStorage persistence.
+	 * Returns ID references instead of full objects to reduce storage size.
+	 */
+	serialize(allTracks: Track[]): {
+		players: Player[];
+		currentPlayerIndex: number;
+		currentTrackId: string | null;
+		availableTrackIds: string[];
+		gameStatus: GameStatus;
+		turnsTaken: number;
+		initialTurnCount: number;
+	} {
+		return {
+			players: this.players.map((player) => ({
+				name: player.name,
+				score: player.score,
+				timeline: player.timeline // Track objects are already serializable
+			})),
+			currentPlayerIndex: this.currentPlayerIndex,
+			currentTrackId: this.currentTrack?.id ?? null,
+			availableTrackIds: this.availableTracks.map((t) => t.id),
+			gameStatus: this.gameStatus,
+			turnsTaken: this.turnsTaken,
+			initialTurnCount: this.initialTurnCount
+		};
+	}
+
+	/**
+	 * Deserialize game engine state from sessionStorage.
+	 * Reconstructs full Track objects from ID references using the provided track list.
+	 */
+	deserialize(
+		data: {
+			players: Player[];
+			currentPlayerIndex: number;
+			currentTrackId: string | null;
+			availableTrackIds: string[];
+			gameStatus: GameStatus;
+			turnsTaken: number;
+			initialTurnCount: number;
+		},
+		allTracks: Track[]
+	): void {
+		const trackMap = new Map(allTracks.map((t) => [t.id, t]));
+
+		// Restore players with their timelines
+		this.players = data.players.map((player) => ({
+			name: player.name,
+			score: player.score,
+			timeline: player.timeline // Timeline tracks are already full objects
+		}));
+
+		this.currentPlayerIndex = data.currentPlayerIndex;
+
+		// Restore current track from ID
+		this.currentTrack = data.currentTrackId ? (trackMap.get(data.currentTrackId) ?? null) : null;
+
+		// Restore available tracks from IDs
+		this.availableTracks = data.availableTrackIds
+			.map((id) => trackMap.get(id))
+			.filter((t): t is Track => t !== undefined);
+
+		this.turnsTaken = data.turnsTaken;
+		this.initialTurnCount = data.initialTurnCount;
+
+		// Clear round result on restore (can't be persisted)
+		this.roundResult = null;
+
+		// If restoring from 'roundEnd' status, we can't show the result modal
+		// because roundResult wasn't persisted. Automatically advance to 'playing'.
+		if (data.gameStatus === 'roundEnd') {
+			console.log('[TuneTapGame] Restored in roundEnd state - advancing to playing');
+			// Move to next player and select a new track
+			this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
+			if (this.availableTracks.length > 0) {
+				this.selectRandomTrack();
+				this.gameStatus = 'playing';
+			} else {
+				this.gameStatus = 'waiting';
+			}
+		} else {
+			this.gameStatus = data.gameStatus;
+		}
+	}
 }

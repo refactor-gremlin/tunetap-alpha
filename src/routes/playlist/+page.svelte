@@ -159,10 +159,10 @@
 			sessionStorage.setItem('tunetap_showSongName', settings.showSongName.toString());
 			sessionStorage.setItem('tunetap_showArtistName', settings.showArtistName.toString());
 			sessionStorage.setItem('tunetap_allowPartialStart', settings.allowPartialStart.toString());
-			goto('/game');
+			goto('/game/setup');
 		} catch (error) {
 			console.error('Error storing tracks:', error);
-			goto('/game', {
+			goto('/game/setup', {
 				state: {
 					tracksData: JSON.stringify(tracks),
 					...settings

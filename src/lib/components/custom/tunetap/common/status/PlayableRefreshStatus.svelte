@@ -71,7 +71,6 @@ Usage:
 		if (lastRefreshResult && onReleaseBatch) {
 			const count = Object.keys(lastRefreshResult.releaseDates).length;
 			if (count > 0) {
-				console.log(`[PlayableRefreshStatus] Applying ${count} release dates`);
 				onReleaseBatch(lastRefreshResult.releaseDates);
 			}
 			lastRefreshResult = null;

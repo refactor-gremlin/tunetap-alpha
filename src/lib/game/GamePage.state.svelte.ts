@@ -7,6 +7,12 @@ import { useEventListener } from 'runed';
 import { goto } from '$app/navigation';
 import type { Page } from '@sveltejs/kit';
 import { isTrackPlayable, needsReleaseDate } from '$lib/utils/track';
+import {
+	type GameSessionData,
+	saveSession,
+	saveSessionImmediate,
+	clearSession
+} from '$lib/game/GameSession.store';
 
 const GAME_PAGE_KEY = Symbol('GamePageState');
 
@@ -299,19 +305,13 @@ export class GamePageState {
 
 	applyReleaseDateById(trackId: string, releaseDate: string | undefined) {
 		if (!releaseDate) {
-			console.log(`[GamePageState] applyReleaseDateById: No date for ${trackId}`);
 			return false;
 		}
 		const index = this.tracks.findIndex((track) => track.id === trackId);
 		if (index === -1) {
-			console.log(`[GamePageState] applyReleaseDateById: Track not found ${trackId}`);
 			return false;
 		}
-		const result = this.applyTrackReleaseDate(index, releaseDate);
-		if (result) {
-			console.log(`[GamePageState] Applied release date ${releaseDate} to track ${trackId} (index ${index})`);
-		}
-		return result;
+		return this.applyTrackReleaseDate(index, releaseDate);
 	}
 
 	getTrackById(trackId: string) {
@@ -410,28 +410,56 @@ export class GamePageState {
 	}
 
 	nextTurn() {
-		if (!this.gameEngine) return;
+		if (!this.gameEngine) {
+			console.warn('[GamePageState] nextTurn: No game engine');
+			return;
+		}
+		
+		const playerCount = this.gameEngine.players.length;
+		const currentIdx = this.gameEngine.currentPlayerIndex;
+		console.log(`[GamePageState] nextTurn called - players: ${playerCount}, currentIdx: ${currentIdx}`);
 		
 		// Show handoff screen if multiplayer
-		if (this.gameEngine.players.length > 1) {
+		if (playerCount > 1) {
+			console.log('[GamePageState] Setting showHandoff = true for multiplayer handoff');
 			this.showHandoff = true;
 		} else {
+			console.log('[GamePageState] Single player - completing turn directly');
 			this.completeNextTurn();
 		}
 	}
 
 	completeNextTurn() {
-		if (!this.gameEngine) return;
+		if (!this.gameEngine) {
+			console.warn('[GamePageState] completeNextTurn: No game engine');
+			return;
+		}
+		
+		const prevIdx = this.gameEngine.currentPlayerIndex;
+		console.log(`[GamePageState] completeNextTurn - advancing from player ${prevIdx}`);
 		
 		// Advance the game state first
 		this.gameEngine.nextTurn();
+		
+		const newIdx = this.gameEngine.currentPlayerIndex;
+		const newStatus = this.gameEngine.gameStatus;
+		console.log(`[GamePageState] Game advanced - new player: ${newIdx}, status: ${newStatus}`);
 		
 		// Reset game UI state
 		this.blurred = true;
 		this.showSongName = false;
 		this.showArtistName = false;
 		this.showHandoff = false;
+		this.showReleaseDates = false;
 		this.stopTrack();
+		
+		// Re-trigger collision detection after timeline updates
+		// Use tick() to wait for the DOM to update with new timeline content
+		tick().then(() => {
+			this.updateScrollState();
+			this.detectNeedleCollision();
+			console.log(`[GamePageState] Re-detected collision - showDropButton: ${this.showDropButton}`);
+		});
 	}
 
 	endGame() {
@@ -442,6 +470,7 @@ export class GamePageState {
 	}
 
 	restartGame() {
+		clearSession();
 		goto('/playlist');
 	}
 
@@ -570,5 +599,131 @@ export class GamePageState {
 				}
 			});
 		}
+	}
+
+	/**
+	 * Serialize the complete game state for sessionStorage persistence.
+	 * Called automatically via $effect when state changes.
+	 */
+	serialize(): GameSessionData {
+		const gameEngineData = this.gameEngine
+			? this.gameEngine.serialize(this.tracks)
+			: {
+					players: [],
+					currentPlayerIndex: 0,
+					currentTrackId: null,
+					availableTrackIds: [],
+					gameStatus: 'setup' as const,
+					turnsTaken: 0,
+					initialTurnCount: 0
+				};
+
+		return {
+			tracks: this.tracks,
+			playerNames: this.playerNames,
+			playerCount: this.playerCount,
+			showSongName: this.showSongName,
+			showArtistName: this.showArtistName,
+			allowPartialStart: this.allowPartialStartPreference,
+			queueSize: this.queueSize,
+			players: gameEngineData.players,
+			currentPlayerIndex: gameEngineData.currentPlayerIndex,
+			currentTrackId: gameEngineData.currentTrackId,
+			availableTrackIds: gameEngineData.availableTrackIds,
+			gameStatus: gameEngineData.gameStatus,
+			turnsTaken: gameEngineData.turnsTaken,
+			initialTurnCount: gameEngineData.initialTurnCount,
+			showHandoff: this.showHandoff,
+			blurred: this.blurred,
+			showReleaseDates: this.showReleaseDates,
+			exactYearBonusAwarded: this.exactYearBonusAwarded
+		};
+	}
+
+	/**
+	 * Deserialize game state from sessionStorage.
+	 * Called on layout mount to restore game state after navigation/refresh.
+	 */
+	deserialize(data: GameSessionData): void {
+		// Restore track data
+		this.tracks = data.tracks;
+		this.playerNames = data.playerNames;
+		this.playerCount = data.playerCount;
+		this.showSongName = data.showSongName;
+		this.showArtistName = data.showArtistName;
+		this.allowPartialStartPreference = data.allowPartialStart;
+		this.queueSize = data.queueSize;
+
+		// Restore UI state
+		this.showHandoff = data.showHandoff;
+		this.blurred = data.blurred;
+		this.showReleaseDates = data.showReleaseDates;
+		this.exactYearBonusAwarded = data.exactYearBonusAwarded;
+
+		// Initialize release map from tracks
+		this.initializeReleaseMap(data.tracks);
+
+		// Restore game engine if game is in progress
+		if (data.gameStatus !== 'setup' && data.players.length > 0) {
+			this.gameEngine = new TuneTapGame();
+			this.gameEngine.deserialize(
+				{
+					players: data.players,
+					currentPlayerIndex: data.currentPlayerIndex,
+					currentTrackId: data.currentTrackId,
+					availableTrackIds: data.availableTrackIds,
+					gameStatus: data.gameStatus,
+					turnsTaken: data.turnsTaken,
+					initialTurnCount: data.initialTurnCount
+				},
+				data.tracks
+			);
+		}
+
+		this.hasInitialized = true;
+		this.updateScrollState();
+	}
+
+	/**
+	 * Save current state to sessionStorage.
+	 * Use debounced version for frequent updates, immediate for critical changes.
+	 */
+	saveToSession(immediate = false): void {
+		if (!this.hasInitialized) return;
+
+		const data = this.serialize();
+		if (immediate) {
+			saveSessionImmediate(data);
+		} else {
+			saveSession(data);
+		}
+	}
+
+	/**
+	 * Enable automatic session persistence.
+	 * Call this once after context is created to enable auto-save on state changes.
+	 */
+	enableSessionPersistence(): void {
+		$effect(() => {
+			// Track all serializable state changes
+			// eslint-disable-next-line @typescript-eslint/no-unused-expressions
+			this.tracks;
+			// eslint-disable-next-line @typescript-eslint/no-unused-expressions
+			this.playerNames;
+			// eslint-disable-next-line @typescript-eslint/no-unused-expressions
+			this.gameEngine?.gameStatus;
+			// eslint-disable-next-line @typescript-eslint/no-unused-expressions
+			this.gameEngine?.currentPlayerIndex;
+			// eslint-disable-next-line @typescript-eslint/no-unused-expressions
+			this.gameEngine?.turnsTaken;
+			// eslint-disable-next-line @typescript-eslint/no-unused-expressions
+			this.showHandoff;
+			// eslint-disable-next-line @typescript-eslint/no-unused-expressions
+			this.blurred;
+
+			if (this.hasInitialized) {
+				this.saveToSession();
+			}
+		});
 	}
 }

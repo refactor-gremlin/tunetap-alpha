@@ -40,20 +40,46 @@ Usage:
 	} = $props();
 
 	let isModalOpen = $state(true);
+	let hasUserDismissed = $state(false);
+	let previousResultRef: PlacementResult | null = null;
 
-	// Re-open the modal when result changes (new round)
+	// Reset dismissed state and open modal when result changes to a NEW non-null value
+	// This ensures we don't reset when result becomes null during state transitions
 	$effect(() => {
-		if (result) {
+		if (result && result !== previousResultRef) {
+			// New non-null result - this is a new round
+			previousResultRef = result;
+			hasUserDismissed = false;
 			isModalOpen = true;
+		} else if (!result) {
+			// Result cleared - just update the ref, don't change modal state
+			previousResultRef = null;
 		}
 	});
 
+	function handleNextTurnClick() {
+		console.log('[RoundResultModal] Next Turn clicked - dismissing modal');
+		hasUserDismissed = true;
+		isModalOpen = false;
+		// Call onNextTurn directly with a delay to let the Dialog close animation complete
+		// onOpenChange doesn't fire when we programmatically set the bound value
+		setTimeout(() => {
+			console.log('[RoundResultModal] Calling onNextTurn now');
+			onNextTurn();
+		}, 150);
+	}
+
 	function handleOpenChange(isOpen: boolean) {
-		if (!isOpen) {
-			isModalOpen = false;
-			// Wait for close animation to complete before advancing
-			// This prevents unmounting the Dialog mid-animation
-			setTimeout(onNextTurn, 200);
+		// This only fires when Dialog initiates close (click outside, Escape key)
+		console.log(`[RoundResultModal] onOpenChange: isOpen=${isOpen}, hasUserDismissed=${hasUserDismissed}`);
+		if (!isOpen && !hasUserDismissed) {
+			// User closed via click outside or Escape - still need to advance
+			hasUserDismissed = true;
+			console.log('[RoundResultModal] Dialog closed externally, scheduling onNextTurn');
+			setTimeout(() => {
+				console.log('[RoundResultModal] Calling onNextTurn now');
+				onNextTurn();
+			}, 150);
 		}
 	}
 
@@ -150,7 +176,7 @@ Usage:
 				</div>
 				<Dialog.Footer>
 					<div class="round-result-footer" in:fade={modalTransitions.footer}>
-						<Button onclick={() => (isModalOpen = false)} size="lg" class="next-button">Next Turn</Button>
+						<Button onclick={handleNextTurnClick} size="lg" class="next-button">Next Turn</Button>
 					</div>
 				</Dialog.Footer>
 			</div>
