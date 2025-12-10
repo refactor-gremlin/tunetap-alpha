@@ -471,9 +471,14 @@ export class GamePageState {
 		// Re-trigger collision detection after timeline updates
 		// Use tick() to wait for the DOM to update with new timeline content
 		tick().then(() => {
+			console.log(`[GamePageState] completeNextTurn tick.then START`);
 			this.updateScrollState();
 			this.detectNeedleCollision();
 			console.log(`[GamePageState] Re-detected collision - showDropButton: ${this.showDropButton}`);
+			console.log(`[GamePageState] completeNextTurn tick.then END`);
+		}).then(() => {
+			// This should execute after all synchronous updates triggered by the previous .then()
+			console.log(`[GamePageState] completeNextTurn - ALL DONE (second tick)`);
 		});
 	}
 

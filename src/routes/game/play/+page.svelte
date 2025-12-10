@@ -197,7 +197,7 @@ This page displays:
 		<div
 			class="timeline-needle-overlay"
 			bind:this={ctx.needleOverlayEl}
-			style={`--needle-horizontal-offset: ${ctx.needleSpring.current}px; ${needleStyles}`}
+			style={`--needle-horizontal-offset: 0px; ${needleStyles}`}
 		>
 			<Needle
 				showDropButton={ctx.showDropButton}
