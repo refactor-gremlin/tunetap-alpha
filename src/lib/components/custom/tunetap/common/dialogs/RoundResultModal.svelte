@@ -51,7 +51,9 @@ Usage:
 	function handleOpenChange(isOpen: boolean) {
 		if (!isOpen) {
 			isModalOpen = false;
-			onNextTurn();
+			// Wait for close animation to complete before advancing
+			// This prevents unmounting the Dialog mid-animation
+			setTimeout(onNextTurn, 200);
 		}
 	}
 
