@@ -106,13 +106,25 @@ Usage:
 			});
 			scoreSprings.set(key, spring);
 		}
-		if (reducedMotion) {
-			spring.set(player.score, { instant: true });
-		} else {
-			spring.target = player.score;
-		}
+		// Don't mutate spring.target here - that causes state_unsafe_mutation error
+		// Spring targets are updated in the $effect below
 		return spring;
 	}
+
+	// Update Spring targets in an effect (after render) to avoid state_unsafe_mutation
+	$effect(() => {
+		for (const [index, player] of players.entries()) {
+			const key = getPlayerKey(player, index);
+			const spring = scoreSprings.get(key);
+			if (spring) {
+				if (reducedMotion) {
+					spring.set(player.score, { instant: true });
+				} else {
+					spring.target = player.score;
+				}
+			}
+		}
+	});
 
 	$effect(() => {
 		if (!queueStatusFetcher) {

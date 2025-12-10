@@ -41,15 +41,18 @@ Usage:
 
 	let isModalOpen = $state(true);
 
+	// Re-open the modal when result changes (new round)
 	$effect(() => {
-		isModalOpen = true;
+		if (result) {
+			isModalOpen = true;
+		}
 	});
 
 	function handleOpenChange(isOpen: boolean) {
 		if (!isOpen) {
+			isModalOpen = false;
 			onNextTurn();
 		}
-		isModalOpen = isOpen;
 	}
 
 	const trackYear = $derived(currentTrack ? getReleaseYear(currentTrack) : null);
@@ -145,7 +148,7 @@ Usage:
 				</div>
 				<Dialog.Footer>
 					<div class="round-result-footer" in:fade={modalTransitions.footer}>
-						<Button onclick={onNextTurn} size="lg" class="next-button">Next Turn</Button>
+						<Button onclick={() => (isModalOpen = false)} size="lg" class="next-button">Next Turn</Button>
 					</div>
 				</Dialog.Footer>
 			</div>
@@ -156,6 +159,12 @@ Usage:
 <style>
 	:global(.round-result-modal) {
 		max-width: 450px;
+		z-index: 1100 !important;
+	}
+
+	/* Override the overlay z-index to be above #app-shell (z-1000) */
+	:global([data-slot="dialog-overlay"]) {
+		z-index: 1050 !important;
 	}
 
 	.round-result-panel {

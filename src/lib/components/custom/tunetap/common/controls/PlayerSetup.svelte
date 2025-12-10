@@ -40,54 +40,57 @@ Usage:
 
 	let queueSize = $state(0);
 	let isLoading = $state(false);
-	let tracksWithReleaseDates = $state(0);
 	let progressPercentage = $state(0);
 	let allowPartialStart = $state(defaultAllowPartialStart);
 	let timeRemainingString = $state('');
 	let hasInitialQueueCheck = $state(false);
 
 	const hasRecommendedTracks = $derived(playableTracksCount >= RECOMMENDED_PLAYABLE_TRACKS);
-	const canOfferPartialStart = $derived(
-		playableTracksCount >= MIN_PARTIAL_START_TRACKS && !hasRecommendedTracks
-	);
-	const canStartGame = $derived(
-		hasRecommendedTracks || (allowPartialStart && playableTracksCount >= MIN_PARTIAL_START_TRACKS)
-	);
+	const hasMinimumTracks = $derived(playableTracksCount >= MIN_PARTIAL_START_TRACKS);
+	const canOfferPartialStart = $derived(hasMinimumTracks && !hasRecommendedTracks);
+	const canStartGame = $derived(hasRecommendedTracks || (allowPartialStart && hasMinimumTracks));
 	const isUrgentLoading = $derived(!hasRecommendedTracks && queueSize > 0);
 
 	$effect(() => {
-		tracksWithReleaseDates = playableTracksCount;
 		progressPercentage = Math.min(
 			100,
 			Math.round((playableTracksCount / RECOMMENDED_PLAYABLE_TRACKS) * 100)
 		);
-		// Only show loading after we've done initial queue check and confirmed there's work pending
 		if (hasInitialQueueCheck) {
 			isLoading = isUrgentLoading;
 		}
 	});
 
-$effect(() => {
-	const fetchStatus = async () => {
-		try {
-			const status = await getQueueStatus({});
-			queueSize = status.pendingCount;
-			timeRemainingString = status.timeRemainingString;
-			if (!hasInitialQueueCheck) {
-				hasInitialQueueCheck = true;
+	$effect(() => {
+		const fetchStatus = async () => {
+			try {
+				const status = await getQueueStatus({});
+				queueSize = status.pendingCount;
+				timeRemainingString = status.timeRemainingString;
+				if (!hasInitialQueueCheck) {
+					hasInitialQueueCheck = true;
+				}
+			} catch (error) {
+				console.error('Error fetching queue status:', error);
+				if (!hasInitialQueueCheck) {
+					hasInitialQueueCheck = true;
+				}
 			}
-		} catch (error) {
-			console.error('Error fetching queue status:', error);
-			if (!hasInitialQueueCheck) {
-				hasInitialQueueCheck = true;
-			}
-		}
-	};
+		};
 
-	fetchStatus();
-	const interval = setInterval(fetchStatus, 1000);
-	return () => clearInterval(interval);
-});
+		fetchStatus();
+		const interval = setInterval(fetchStatus, 1000);
+		return () => clearInterval(interval);
+	});
+
+	function getButtonText(): string {
+		if (playableTracksCount === 0) return 'Waiting for tracks...';
+		if (playableTracksCount < MIN_PARTIAL_START_TRACKS)
+			return `Need ${MIN_PARTIAL_START_TRACKS}+ tracks to start`;
+		if (hasRecommendedTracks) return 'Start Game';
+		if (allowPartialStart) return `Start with ${playableTracksCount} tracks`;
+		return 'Enable early start below';
+	}
 </script>
 
 <Card.Root class="setup-card">
@@ -96,7 +99,9 @@ $effect(() => {
 	</Card.Header>
 	<Card.Content>
 		<div class="setup-content">
-			<p class="local-hint">Single-device local multiplayer. Pass the device between players each turn.</p>
+			<p class="local-hint">
+				Single-device local multiplayer. Pass the device between players each turn.
+			</p>
 			<p>Enter names for each player:</p>
 			<div class="player-inputs" class:multi-column={playerNames.length > 3}>
 				{#each playerNames as name, index}
@@ -107,60 +112,54 @@ $effect(() => {
 					/>
 				{/each}
 			</div>
-			
-			<div class="track-status">
-				<p class="tracks-info">
-					<strong>{playableTracksCount}</strong> / {RECOMMENDED_PLAYABLE_TRACKS} playable tracks
-					{#if totalTracksCount && totalTracksCount !== playableTracksCount}
-						<span class="tracks-info-sub">({totalTracksCount} total in playlist)</span>
-					{/if}
-				</p>
 
-				{#if isLoading}
+			<div class="track-status">
+				<div class="tracks-header">
+					<span class="tracks-count">{playableTracksCount}</span>
+					<span class="tracks-label">tracks ready to play</span>
+				</div>
+
+				{#if isLoading && queueSize > 0}
 					<div class="loading-status">
 						<Progress value={progressPercentage} class="progress-bar" />
 						<p class="queue-info">
-							{queueSize} tracks in queue
-							{#if queueSize > 0 && timeRemainingString}
-								(~{timeRemainingString} remaining)
+							Loading {queueSize} more
+							{#if timeRemainingString}
+								(~{timeRemainingString})
 							{/if}
 						</p>
 					</div>
 				{:else if hasRecommendedTracks}
 					<p class="ready-text">✓ Ready to play!</p>
-				{:else if queueSize === 0}
-					<p class="queue-info-subtle">All available release dates loaded.</p>
+				{:else if queueSize === 0 && hasInitialQueueCheck}
+					<p class="queue-info-subtle">All release dates loaded</p>
 				{/if}
 			</div>
-			
+
 			<div class="start-section">
 				{#if playableTracksCount === 0}
 					<div class="no-tracks-warning">
-						<p class="warning-text">⚠️ No playable tracks found yet.</p>
+						<p class="warning-text">⚠️ No playable tracks found yet</p>
+						<p class="warning-hint">Tracks need both audio and a release date</p>
 					</div>
 				{:else if canOfferPartialStart}
-					<div class="partial-start-option">
+					<div class="partial-start-option" class:enabled={allowPartialStart}>
 						<label class="partial-start-label">
 							<Checkbox bind:checked={allowPartialStart} />
-							<span>Start early with {playableTracksCount} tracks</span>
+							<span>Start now with {playableTracksCount} tracks</span>
 						</label>
-						<p class="partial-start-hint">More tracks will load while you play.</p>
+						<p class="partial-start-hint">
+							{#if queueSize > 0}
+								More tracks will load in the background while you play.
+							{:else}
+								You can wait for more tracks or start playing now.
+							{/if}
+						</p>
 					</div>
 				{/if}
 
-				<Button
-					size="lg"
-					onclick={onStartGame}
-					disabled={!canStartGame}
-					class="start-button"
-				>
-					{#if playableTracksCount === 0}
-						Waiting for tracks...
-					{:else if !canStartGame}
-						Need {MIN_PARTIAL_START_TRACKS}+ tracks to start
-					{:else}
-						Start Game
-					{/if}
+				<Button size="lg" onclick={onStartGame} disabled={!canStartGame} class="start-button">
+					{getButtonText()}
 				</Button>
 			</div>
 		</div>
@@ -210,17 +209,23 @@ $effect(() => {
 		text-align: center;
 	}
 
-	.tracks-info {
-		color: var(--foreground);
-		margin: 0;
+	.tracks-header {
+		display: flex;
+		align-items: baseline;
+		justify-content: center;
+		gap: 0.5rem;
 	}
 
-	.tracks-info-sub {
-		display: block;
-		font-size: 0.8rem;
+	.tracks-count {
+		font-size: 2rem;
+		font-weight: 700;
+		color: var(--primary);
+		line-height: 1;
+	}
+
+	.tracks-label {
+		font-size: 0.9rem;
 		color: var(--muted-foreground);
-		font-weight: 400;
-		margin-top: 0.25rem;
 	}
 
 	.loading-status {
@@ -271,6 +276,12 @@ $effect(() => {
 		font-weight: 500;
 	}
 
+	.warning-hint {
+		margin: 0.25rem 0 0 0;
+		font-size: 0.75rem;
+		color: hsl(var(--destructive) / 0.8);
+	}
+
 	:global(.start-button) {
 		width: 100%;
 	}
@@ -278,8 +289,14 @@ $effect(() => {
 	.partial-start-option {
 		padding: 1rem;
 		background-color: hsl(var(--primary) / 0.05);
-		border: 1px solid hsl(var(--primary) / 0.2);
+		border: 2px solid hsl(var(--primary) / 0.3);
 		border-radius: calc(var(--radius) - 2px);
+		transition: border-color 0.15s ease, background-color 0.15s ease;
+	}
+
+	.partial-start-option.enabled {
+		background-color: hsl(var(--primary) / 0.1);
+		border-color: hsl(var(--primary) / 0.5);
 	}
 
 	.partial-start-label {

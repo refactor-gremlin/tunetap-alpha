@@ -51,10 +51,10 @@ tunetap-alpha/
 │   │   ├── (app)/               # Authenticated routes
 │   │   ├── (auth)/              # Public/Auth routes
 │   │   ├── +page.svelte         # Homepage
-│   │   ├── playlist2/           # Playlist input page
+│   │   ├── playlist/           # Playlist input page
 │   │   │   ├── +page.svelte
 │   │   │   └── data.remote.ts   # Remote functions
-│   │   └── game2/               # Main game page
+│   │   └── game/               # Main game page
 │   │       ├── +page.svelte
 │   │       └── musicbrainz.remote.ts  # MusicBrainz queries
 │   ├── features/                # Feature-based organization
